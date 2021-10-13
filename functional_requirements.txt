@@ -1,0 +1,26 @@
+Supported scenarios:
+
+1. Pretraining -> Adaptation -> Fine-tuning
+2. Pretraining -> Adaptation -> Adaptation -> ... -> Fine-tuning
+3. Pretraining[-> Adaptation]-> Fine-tuning -> Fine-tuning -> ...
+
+Functional requirements
+
+0. All objectives are wrapped using the same interface and the schedule is parametrized
+
+1. MLM interface must enforce a correct handling of prediction heads: 
+1.1 if the head does not comply, a suppressable exception is raised
+1.2 If supressed, the head is initialized - that means the adaptation follows fine-tuning, which is not conventional
+1.3 MLM objective is not dependent on a specific model method, i.e. is implemented in standalone and applicable for any model
+
+https://huggingface.co/transformers/_modules/transformers/models/bert/modeling_bert.html#BertForPreTraining.forward
+
+
+2. Seq2Seq interface remains the same between all the steps
+
+ihttps://huggingface.co/transformers/_modules/transformers/models/mbart/modeling_mbart.html#MBartForConditionalGeneration.forward
+
+3. Adapted module is wrapped so that the same interface of tokenization and torch model is exposed to Adapter. User can easily implement a module of (possibly non-transformer) architecture and also tune it with Adapter.
+
+4. It is easy to add new adaptation objectives, for example, the Objective is wrapped and all the Objective instances share the same minimal interface.
+

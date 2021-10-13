@@ -1,0 +1,3 @@
+#. How does the ordering of the objectives affect the results?
+#. Is there an efficient curriculum heuristic (in contrary to learning it) that can consistently improve the performance?
+#. How does the learning rate of the last layer affect the speed of training?
