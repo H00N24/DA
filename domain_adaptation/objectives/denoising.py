@@ -2,14 +2,11 @@ import abc
 import collections
 import itertools
 import random
-from typing import List, Tuple, Optional, Union, Iterable
+from typing import List, Tuple, Optional, Union
 
-import torch
-from transformers import PreTrainedTokenizer, DataCollatorForSeq2Seq
-
-from domain_adaptation.lang_module import LangModule
-from domain_adaptation.objectives.objective_base import UnsupervisedObjective, LanguageModelingMixin
-from domain_adaptation.utils import AdaptationDataset, Head, TransformerAdaptationDataset
+from ..lang_module import LangModule
+from ..objectives.objective_base import UnsupervisedObjective, LanguageModelingMixin
+from ..utils import AdaptationDataset, TransformerAdaptationDataset
 
 
 class NoisingStrategy(abc.ABC):

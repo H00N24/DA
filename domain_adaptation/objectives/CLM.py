@@ -1,11 +1,8 @@
-import abc
-from typing import List, Iterable, Union, Optional
+from typing import List, Union, Optional
 
-import torch
-
-from domain_adaptation.lang_module import LangModule
-from domain_adaptation.objectives.objective_base import UnsupervisedObjective, SupervisedObjective, LanguageModelingMixin
-from domain_adaptation.utils import AdaptationDataset, TransformerAdaptationDataset
+from ..lang_module import LangModule
+from ..objectives.objective_base import UnsupervisedObjective, SupervisedObjective, LanguageModelingMixin
+from ..utils import AdaptationDataset, TransformerAdaptationDataset
 
 
 class CausalLanguageModelingUnsup(LanguageModelingMixin, UnsupervisedObjective):

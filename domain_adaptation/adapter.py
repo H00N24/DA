@@ -1,14 +1,11 @@
-import inspect
-import itertools
 import logging
-from typing import List, Dict, Any, Union
-
 import torch
-from transformers import Trainer, TrainingArguments, BatchEncoding
+from transformers import Trainer, BatchEncoding
+from typing import List, Dict
 
-from domain_adaptation.lang_module import LangModule
-from domain_adaptation.schedules import TrainingSchedule
-from domain_adaptation.utils import AdaptationArguments
+from .lang_module import LangModule
+from .schedules import TrainingSchedule
+from .utils import AdaptationArguments
 
 logger = logging.getLogger()
 
@@ -30,8 +27,6 @@ class Adapter(Trainer):
             raise ValueError("Adapter(**kwargs) got these unexpected kwargs: %s" % unexpected_args)
 
         self.schedule = schedule
-        # TODO: per-objective logging
-        # TODO: how to figure out a number of max_steps? Can that be somehow estimated?
         # TODO: maybe resolve datasets' worker_init_fn for multi-GPU support
 
         orig_callbacks = [] if "callbacks" not in kwargs else kwargs["callbacks"]
@@ -66,3 +61,7 @@ class Adapter(Trainer):
             loss = self.schedule.compute_loss(outputs, labels)
 
         return loss
+
+    def log(self, logs: [Dict[str, float]]) -> None:
+        extended_logs = self.schedule.state.loss_summary(last_steps=self.args.logging_steps)
+        return super().log({**logs, **extended_logs})

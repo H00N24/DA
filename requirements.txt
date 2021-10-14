@@ -1,3 +1,1 @@
-transformers[sentencepiece]
-torch
-pytest
+transformers[sentencepiece]==4.10.2

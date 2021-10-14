@@ -39,8 +39,8 @@ class TrainingSchedule(abc.ABC):
         self.state.change_training_phase(phase)
 
     def _objective_converged(self, oid: int) -> bool:
-        return len(self.state.eval_loss_history[oid]) >= self.args.stopping_patience \
-                and max(self.state.eval_loss_history[oid][:-10]) >= max(self.state.eval_loss_history[oid][-10:])
+        return len(self.state.loss_history["eval"][oid]) >= self.args.stopping_patience \
+                and max(self.state.loss_history["eval"][oid][:-10]) >= max(self.state.eval_loss_history[oid][-10:])
 
     def _objective_passed_epochs(self, oid: int) -> bool:
         return self.state.epochs[oid] > self.args.num_train_epochs
@@ -77,6 +77,8 @@ class TrainingSchedule(abc.ABC):
                 """ Event called by Trainer after given `logging_steps`."""
                 self.remember_if_should_stop()
 
+                return control
+
         return AdaptationStoppingCallback()
 
     def remember_if_should_stop(self):
@@ -109,20 +111,20 @@ class TrainingSchedule(abc.ABC):
         while num_epochs_counter is None or num_epochs_counter > 0:
             datasets_iter = self._sample_datasets(split)
             for batch_encoding in datasets_iter:
-                # stop on next requested batch, if we're in should_stop state
+                # stop on next requested batch, if we're in the should_stop state
                 if self.state.should_stop:
                     return
-                    # raise StopIteration()
+
                 self.objectives_loss_queue.append(batch_encoding["oid"])
                 yield batch_encoding
             num_epochs_counter -= 1
 
         # global num_epochs reached
         return
-        # raise StopIteration()
 
     def iterable_dataset(self, split: str) -> TransformerAdaptationDataset:
-        return TransformerAdaptationDataset(self._combine_datasets(split))
+        length_combined = int(sum(o.dataset_length for o in self.objectives.values()) * self.args.num_train_epochs)
+        return TransformerAdaptationDataset(self._combine_datasets(split), length=length_combined)
 
 
 class SequentialSchedule(TrainingSchedule):

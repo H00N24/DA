@@ -4,8 +4,8 @@ from typing import List, Union, Optional, Iterable
 import torch
 from transformers import DataCollatorForSeq2Seq
 
-from domain_adaptation.lang_module import LangModule
-from domain_adaptation.utils import AdaptationDataset, Head
+from ..lang_module import LangModule
+from ..utils import AdaptationDataset, Head
 
 
 class Objective(abc.ABC):

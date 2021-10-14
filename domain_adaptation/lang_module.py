@@ -1,10 +1,9 @@
-from typing import List, Dict, Set, Union, Any, Optional
-
 import torch
-from transformers import PreTrainedTokenizer, PreTrainedModel, AutoTokenizer, AutoModelForSequenceClassification, \
+from transformers import PreTrainedTokenizer, AutoTokenizer, AutoModelForSequenceClassification, \
     AutoModelForTokenClassification, AutoModelWithLMHead
+from typing import List, Dict, Union, Any, Optional
 
-from domain_adaptation.utils import Head
+from .utils import Head
 
 
 class LangModule(torch.nn.Module):

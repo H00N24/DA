@@ -40,6 +40,12 @@ class AdaptationDataset(IterableDataset, abc.ABC):
     def __init__(self, length: Optional[int] = None):
         self.length = length
 
+    def __getitem__(self, index: int) -> BatchEncoding:
+        raise ValueError("We shouldn't ever get here?")
+
+    def __len__(self):
+        return self.length
+
     @staticmethod
     def iter_text_file_per_line(path: str) -> Iterable[str]:
         with open(path) as f:
@@ -57,9 +63,6 @@ class TransformerAdaptationDataset(AdaptationDataset):
         super().__init__(length)
         self.objective_id = objective_id
         self.batch_encoding_params = batch_encoding_params
-
-    def __getitem__(self, index: int) -> BatchEncoding:
-        raise ValueError("We shouldn't ever get here?")
 
     def __iter__(self) -> Iterator[BatchEncoding]:
         """
@@ -80,8 +83,8 @@ class AdaptationArguments(TrainingArguments):
             "do_predict": False,  # we do not want to mangle with multi-objective reports here,
                                   # models are separately reloadable
             "disable_tqdm": True,  # scheduler takes care of top-level terminal monitoring
-            "max_steps": int(1e5)  # max steps are used to dynamically set a learning rate,
-                                   # we set it as sum(len(objectives))*batch_size
+            "max_steps": -1  # max steps are used to dynamically set a learning rate,
+                             # setting it to a default will set it to num_epochs*sum(objectives.dataset_length)
     }
 
     def __init__(self,

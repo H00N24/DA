@@ -4,9 +4,9 @@ import torch
 from torch.nn import CrossEntropyLoss
 from transformers import DataCollatorForLanguageModeling, DataCollatorForWholeWordMask
 
-from domain_adaptation.lang_module import LangModule
-from domain_adaptation.objectives.objective_base import UnsupervisedObjective
-from domain_adaptation.utils import AdaptationDataset, TransformerAdaptationDataset, Head
+from ..lang_module import LangModule
+from ..objectives.objective_base import UnsupervisedObjective
+from ..utils import AdaptationDataset, TransformerAdaptationDataset, Head
 
 
 class MaskedLanguageModeling(UnsupervisedObjective):
