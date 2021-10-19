@@ -20,11 +20,10 @@ class TrainingSchedule(abc.ABC):
     objectives_loss_queue: List[int] = []
 
     def __init__(self, objectives: List[Objective],
-                 args: AdaptationArguments,
-                 training_phase: str = "train"):
+                 args: AdaptationArguments):
         self.objectives: Dict[int, Objective] = {id(o): o for o in objectives}
         self.state = ScheduleState(objectives, self.label)
-        self.state.change_training_phase(training_phase)
+        self.state.change_training_phase("train")
 
         self.args = args
 
@@ -123,7 +122,8 @@ class TrainingSchedule(abc.ABC):
         return
 
     def iterable_dataset(self, split: str) -> TransformerAdaptationDataset:
-        length_combined = int(sum(o.dataset_length for o in self.objectives.values()) * self.args.num_train_epochs)
+        length_combined = int(self.args.num_train_epochs * sum(o.dataset_length[split]
+                                                               for o in self.objectives.values()))
         return TransformerAdaptationDataset(self._combine_datasets(split), length=length_combined)
 
 

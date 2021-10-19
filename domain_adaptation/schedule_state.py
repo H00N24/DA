@@ -27,7 +27,7 @@ class ScheduleState:
         #                           leave=True)
 
         for i, objective in enumerate(objectives):
-            self.bars[id(objective)] = tqdm.trange(objective.dataset_length,
+            self.bars[id(objective)] = tqdm.trange(objective.dataset_length["train"],
                                                    desc=objective.compatible_head.name,
                                                    unit="batches",
                                                    position=i+1,

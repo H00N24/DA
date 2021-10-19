@@ -45,11 +45,11 @@ class NoisingStrategy(abc.ABC):
         for sep in self.sentence_sep_chars:
             # split each sentence in the list and chain the result, omit the empty sentences
             out_sents = list(itertools.chain(*[[s+sep if s and sep in sent else s for s in sent.split(sep)]
-                                               for sent in out_sents if sent]))
+                                               for sent in out_sents if sent and self._should_be_applied()]))
 
         # separators should keep their positions after the noising
-        seps = [sent[-1] if sent[-1] in self.sentence_sep_chars else "" for sent in out_sents]
-        processed_sents = [sent[:-1] if sep else sent for sent, sep in zip(out_sents, seps)]
+        seps = [sent[-1] if sent[-1] in self.sentence_sep_chars else "" for sent in out_sents if sent]
+        processed_sents = [sent[:-1] if sep else sent for sent, sep in zip(out_sents, seps) if sent]
         out_text = " ".join([self(sent, apply_per_sentence=False) + sep for sent, sep in zip(processed_sents, seps)])
         return out_text
 
@@ -143,12 +143,8 @@ class DenoisingObjective(UnsupervisedObjective, LanguageModelingMixin):
         return out_text
 
     def get_dataset(self, split: str) -> AdaptationDataset:
-        if self.texts is not None:
-            source_texts_iter = iter(self.texts)
-            target_texts_iter = iter(self.texts)
-        else:
-            source_texts_iter = AdaptationDataset.iter_text_file_per_line(self.texts_path)
-            target_texts_iter = AdaptationDataset.iter_text_file_per_line(self.texts_path)
+        source_texts_iter = self._per_split_iterators(split)
+        target_texts_iter = self._per_split_iterators(split)
 
         input_texts_noised = (self._apply_noise(text) for text in source_texts_iter)
         collated_iter = self._pad_collate_inputs(input_texts_noised, target_texts_iter)

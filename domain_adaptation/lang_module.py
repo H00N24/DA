@@ -48,7 +48,7 @@ class LangModule(torch.nn.Module):
                 # this can contain a deep stack of layers, hence in general, it can not be checked automatically
                 print("These layers of the laded %s were not merged: %s" % (head_str, unmatched_modules))
 
-            # TODO: register expected output sizes
+            # TODO: register expected output sizes?
             last_layer = list(self.trainable_models[head_str].parameters())[-1]
             self.heads_output_sizes[head_str] = last_layer.shape[-1]
 
@@ -77,39 +77,6 @@ class LangModule(torch.nn.Module):
                 unmatched_modules.append(orig_param_key)
 
         return unmatched_modules
-
-    def resize_head(self, selected_head: Head, target_size: int, head_params_prefix: str = "classifier") -> None:
-        raise DeprecationWarning("This is not a supported way of adjusting the model.")
-        if selected_head in self.resized_heads:
-            raise UserWarning("Head %s has already been resized, but I will resize it again. "
-                              "Resizing re-initializes some model parameters, make sure you are not doing it too ofter")
-
-        def nested_assign(parent_module: Union[torch.nn.Module, torch.nn.Parameter],
-                          reassigned_param: str, reassignment: torch.nn.Parameter):
-            if type(parent_module) != torch.nn.Parameter:
-                all_params_dict = dict(parent_module.named_parameters())
-                child_module = all_params_dict[reassigned_param]
-
-                nested_assign(child_module, reassigned_param.split(".", maxsplit=2)[1], reassignment)
-            else:
-                setattr(parent_module, reassigned_param, reassignment)
-                parent_module.shape = reassignment.shape
-
-        with torch.no_grad():
-            requested_head_model = self.trainable_models[selected_head.name]
-            all_params = requested_head_model.state_dict()
-            head_params = [params for params in all_params.items() if head_params_prefix in params[0]]
-            prev_output_size = head_params[-1][1].shape[0]
-            for name, param in head_params:
-                # resize head param, if any of its dimensions match the previous output size
-                # note that this is a convenient heuristic, but does not reassure the correctness
-                orig_shape = param.shape
-                if prev_output_size in orig_shape:
-                    new_shape = [s if s != prev_output_size else target_size for s in orig_shape]
-                    new_param = torch.nn.Parameter(torch.randn(new_shape), requires_grad=True)
-                    nested_assign(requested_head_model, name, new_param)
-                    self.resized_heads.add(selected_head)
-            return
 
     def _head_by_labels(self, labels: torch.LongTensor) -> Head:
         if len(labels.shape) == 1:
@@ -144,14 +111,17 @@ class LangModule(torch.nn.Module):
 
         return logits
 
-    def save_pretrained(self, save_dir: str, saved_head: Head) -> None:
-        """ Saves a lang_module instance with given head to `save_dir`.
-        TODO: save all heads at once: register all params to a single lang_module and persist the one.
-        On loading, models with distinct heads might pick the corresponding params by their **non-colliding** names
+    def reinitialize(self, head: Optional[Head] = None, seed: int = 42) -> None:
+        def reinit_model_weights(m: torch.nn.Module):
+            if hasattr(m, "children"):
+                for m_child in m.children():
+                    if hasattr(m_child, "reset_parameters"):
+                        m_child.reset_parameters()
+                    reinit_model_weights(m_child)
 
-        :param save_dir:
-        :param saved_head:
-        :return:
-        """
-        self.tokenizer.save_pretrained(save_dir)
-        self.trainable_models[saved_head.name].save_pretrained(save_dir)
+        torch.manual_seed(seed)
+        if head is not None:
+            self.trainable_models[head.name].apply(reinit_model_weights)
+        else:
+            for head, head_model in self.trainable_models.items():
+                head_model.apply(reinit_model_weights)

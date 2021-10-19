@@ -1,7 +1,8 @@
 import logging
+from typing import List, Dict, Tuple, Union
+
 import torch
 from transformers import Trainer, BatchEncoding
-from typing import List, Dict
 
 from .lang_module import LangModule
 from .schedules import TrainingSchedule
@@ -36,6 +37,7 @@ class Adapter(Trainer):
                          train_dataset=self.schedule.iterable_dataset(split="train"),
                          eval_dataset=self.schedule.iterable_dataset(split="eval"),
                          data_collator=self.flattened_collator,
+                         compute_metrics=None,  # would require a static prediction format, but it varies
                          callbacks=orig_callbacks + [schedule.should_stop_check_callback()],
                          **kwargs)
 
@@ -44,13 +46,14 @@ class Adapter(Trainer):
         """
         Objectives take care of their own data collation, so this collator just flattens the outputs of batch_size=1.
         Trainer should keep the passed `per_device_*_batch_size` even on multiGPU training, so no data is omitted.
-        :return:
+        :return: loss and a placeholder of unused outputs, for compatibility
         """
         assert len(features) == 1
 
         return features[0]
 
-    def compute_loss(self, model: LangModule, inputs: Dict[str, torch.Tensor]) -> torch.FloatTensor:
+    def compute_loss(self, model: LangModule, inputs: Dict[str, torch.Tensor],
+                     return_outputs: bool = False) -> Union[torch.FloatTensor, Tuple[torch.FloatTensor, None]]:
         labels = inputs["labels"] if "labels" in inputs else inputs["label"]
 
         outputs = model(**inputs)
@@ -60,8 +63,18 @@ class Adapter(Trainer):
         else:
             loss = self.schedule.compute_loss(outputs, labels)
 
-        return loss
+        mock_outputs = torch.tensor([-1, -1])
+        return (loss, mock_outputs) if return_outputs else loss
 
     def log(self, logs: [Dict[str, float]]) -> None:
         extended_logs = self.schedule.state.loss_summary(last_steps=self.args.logging_steps)
         return super().log({**logs, **extended_logs})
+
+    def evaluate(self, *args, **kwargs) -> Dict[str, float]:
+        self.schedule.state.change_training_phase("eval")
+        logger.warning("Evaluating...")
+        out = super(Adapter, self).evaluate(*args, **kwargs)
+
+        self.schedule.state.change_training_phase("train")
+        return out
+

@@ -8,7 +8,7 @@ from ..utils import AdaptationDataset, TransformerAdaptationDataset
 class CausalLanguageModelingUnsup(LanguageModelingMixin, UnsupervisedObjective):
 
     def get_dataset(self, split: str) -> AdaptationDataset:
-        # TODO: GPT objective: move targets one-token to the right and permute the attention masks (?)
+        # TODO: GPT objective: for targets, move sources one-token to the right and permute the attention masks (?)
         raise NotImplementedError()
 
 
@@ -25,12 +25,7 @@ class CausalDecoderLanguageModelingSup(SupervisedObjective, LanguageModelingMixi
         self.tokenizer.tgt_lang = target_lang_id
 
     def get_dataset(self, split: str) -> AdaptationDataset:
-        if self.texts is not None:
-            source_texts_iter = iter(self.texts)
-            target_texts_iter = iter(self.texts)
-        else:
-            source_texts_iter = AdaptationDataset.iter_text_file_per_line(self.texts_path)
-            target_texts_iter = AdaptationDataset.iter_text_file_per_line(self.texts_path)
+        source_texts_iter, target_texts_iter = self._per_split_iterators(split)
 
         collated_iter = self._pad_collate_inputs(source_texts_iter, target_texts_iter)
 

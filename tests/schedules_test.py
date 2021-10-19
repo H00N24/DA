@@ -6,8 +6,7 @@ from domain_adaptation.objectives.MLM import MaskedLanguageModeling
 from domain_adaptation.objectives.classification import TokenClassification
 from domain_adaptation.objectives.denoising import DenoisingObjective
 from domain_adaptation.schedules import SequentialSchedule, TrainingSchedule, StridedSchedule
-from domain_adaptation.utils import Head
-
+from domain_adaptation.utils import Head, AdaptationArguments, StoppingStrategy
 
 unsup_target_domain_texts = "mock_data/domain_unsup.txt"
 sup_target_domain_texts = "mock_data/ner_texts_sup.txt"
@@ -15,6 +14,15 @@ sup_target_domain_labels = "mock_data/ner_texts_sup_labels.txt"
 
 sup_translation_texts_src = "mock_data/seq2seq_sources.txt"
 sup_translation_texts_tgt = "mock_data/seq2seq_targets.txt"
+
+args = AdaptationArguments(output_dir="adaptation_output_dir",
+                           stopping_strategy=StoppingStrategy.FIRST_OBJECTIVE_CONVERGES,
+                           do_train=True,
+                           do_eval=True,
+                           gradient_accumulation_steps=2,
+                           log_level="critical",
+                           logging_steps=1,
+                           num_train_epochs=20)
 
 
 def assert_schedule(lang_module: LangModule, schedule: TrainingSchedule, num_iter: int = 10, split: str = "train"):
@@ -42,8 +50,8 @@ def run_ner_da_schedule():
                                                labels_or_path=sup_target_domain_labels,
                                                batch_size=1)
 
-    assert_schedule(lang_module, SequentialSchedule(objectives=[lm_adaptation, token_classification]))
-    assert_schedule(lang_module, StridedSchedule(objectives=[lm_adaptation, token_classification]))
+    assert_schedule(lang_module, SequentialSchedule(objectives=[lm_adaptation, token_classification], args=args))
+    assert_schedule(lang_module, StridedSchedule(objectives=[lm_adaptation, token_classification], args=args))
 
 
 def run_mt_da_schedule():
@@ -56,7 +64,7 @@ def run_mt_da_schedule():
                                                       target_lang_id="id",
                                                       batch_size=1)
 
-    assert_schedule(lang_module, SequentialSchedule(objectives=[denoising_adaptation, clm_finetuning]))
+    assert_schedule(lang_module, SequentialSchedule(objectives=[denoising_adaptation, clm_finetuning], args=args))
 
 
 # OK:
