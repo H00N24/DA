@@ -78,7 +78,10 @@ class Objective(abc.ABC):
     def _get_inputs_iterator(self, split: str) -> Iterable:
         pass
 
-    def get_dataset(self, split: str, objective_i: int, epoch: int = 0) -> AdaptationDataset:
+    def get_dataset(self, split: str,
+                    objective_i: int,
+                    device: Union[str, torch.device],
+                    epoch: int = 0) -> AdaptationDataset:
         self.epoch = epoch
 
         self.progressbar[split] = trange(self.dataset_length[split],
@@ -90,7 +93,12 @@ class Objective(abc.ABC):
 
         inputs_iter = self._get_inputs_iterator(split)
 
-        return TransformerAdaptationDataset(inputs_iter, objective_id=id(self))
+        def _sample_to_device(sample: Dict[str, torch.LongTensor]) -> Dict[str, torch.LongTensor]:
+            return {k: v.to(device) if k != "oid" else v for k, v in sample.items()}
+
+        device_inputs_iter = map(_sample_to_device, inputs_iter)
+
+        return TransformerAdaptationDataset(device_inputs_iter, objective_id=id(self))
 
     @abc.abstractmethod
     def _per_split_iterators(self, split: str) -> Union[Iterable[str], Tuple[Iterable[str], Iterable[str]]]:

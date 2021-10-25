@@ -15,7 +15,7 @@ sup_target_domain_labels = "mock_data/ner_texts_sup_labels.txt"
 
 def assert_model_objective_ok(lang_module: LangModule, objective: Objective, split: str = "train"):
     # dataset iteration test
-    dataset_sample = next(iter(objective.get_dataset(split, objective_i=0, epoch=0)))
+    dataset_sample = next(iter(objective.get_dataset(split, objective_i=0, device="cpu", epoch=0)))
 
     # providing labels makes HF lang_module to compute its own loss, which is in DA redundantly done by Objective
     outputs = lang_module(objective.compatible_head, **dataset_sample)

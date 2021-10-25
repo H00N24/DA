@@ -4,7 +4,7 @@ import abc
 import itertools
 import torch
 from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl
-from typing import List, Iterable, Dict, Any, Tuple
+from typing import List, Iterable, Dict, Any, Tuple, Union
 
 from domain_adaptation.objectives.objective_base import Objective
 from domain_adaptation.utils import TransformerAdaptationDataset, StoppingStrategy, AdaptationArguments
@@ -130,16 +130,16 @@ class TrainingSchedule(abc.ABC):
 
     def iterable_dataset(self, split: str) -> TransformerAdaptationDataset:
         length_combined = sum(o.dataset_length[split] for o in self.objectives.values())
-        return TransformerAdaptationDataset(self._combine_datasets(split, length_combined), length=length_combined)
+        return TransformerAdaptationDataset(self._combine_datasets(split, length_combined), length_combined)
 
 
 class SequentialSchedule(TrainingSchedule):
 
     label = "sequential"
 
-    def _sample_datasets(self, split: str, epoch: int) -> Iterable[Iterable[Dict[str, Any]]]:
+    def _sample_datasets(self, split: str, epoch: int) -> Iterable[Dict[str, Any]]:
         for i, (oid, objective) in enumerate(self.objectives.items()):
-            for batch_encoding in objective.get_dataset(split, i, epoch):
+            for batch_encoding in objective.get_dataset(split, i, self.args.device, epoch):
                 yield batch_encoding
 
 
@@ -147,8 +147,8 @@ class StridedSchedule(TrainingSchedule):
 
     label = "strided"
 
-    def _sample_datasets(self, split: str, epoch: int) -> Iterable[Iterable[Dict[str, Any]]]:
-        all_dataset_iters = (iter(obj.get_dataset(split, i, epoch))
+    def _sample_datasets(self, split: str, epoch: int) -> Iterable[Dict[str, Any]]:
+        all_dataset_iters = (iter(obj.get_dataset(split, i, self.args.device, epoch))
                              for i, (oid, obj) in enumerate(self.objectives.items()))
         for batch_encoding in itertools.chain(*zip(*all_dataset_iters)):
             yield batch_encoding
