@@ -4,7 +4,7 @@ from domain_adaptation.objectives.MLM import MaskedLanguageModeling
 from domain_adaptation.objectives.classification import TokenClassification
 from domain_adaptation.schedules import SequentialSchedule
 from domain_adaptation.utils import Head, AdaptationArguments, StoppingStrategy
-from utils import paths
+from utils import paths, test_base_models
 
 
 training_arguments = AdaptationArguments(output_dir="adaptation_output_dir",
@@ -22,8 +22,8 @@ def run_adaptation(adapter: Adapter, trained_model_output_dir: str = "adaptation
     adapter.save_model(trained_model_output_dir)
 
 
-def ner_adaptation():
-    lang_module = LangModule("bert-base-multilingual-cased",
+def test_ner_adaptation():
+    lang_module = LangModule(test_base_models["token_classification"],
                              head_types=[Head.LANGUAGE_MODEL, Head.TOKEN_CLASSIFICATION],
                              head_kwargs=[{}, {"num_labels": 3}])
     objectives = [
@@ -43,4 +43,4 @@ def ner_adaptation():
     run_adaptation(adapter)
 
 
-ner_adaptation()
+# ner_adaptation()

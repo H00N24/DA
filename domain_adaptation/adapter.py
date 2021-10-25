@@ -21,6 +21,7 @@ class Adapter(Trainer):
     """
 
     permitted_args = ["args", "tokenizer", "compute_metrics", "callbacks", "optimizers"]
+    eval_metrics_prefix = "eval"
 
     def __init__(self, lang_module: LangModule, schedule: TrainingSchedule, args: AdaptationArguments, **kwargs):
         unexpected_args = [k for k in kwargs.keys() if k not in self.permitted_args]
@@ -67,14 +68,17 @@ class Adapter(Trainer):
         return (loss, mock_outputs) if return_outputs else loss
 
     def log(self, logs: [Dict[str, float]]) -> None:
-        extended_logs = self.schedule.state.loss_summary(last_steps=self.args.logging_steps)
+        is_eval_log = any(self.eval_metrics_prefix in log_key for log_key in logs)
+        extended_logs = self.schedule.objectives_log(split="eval" if is_eval_log else "train")
         return super().log({**logs, **extended_logs})
 
     def evaluate(self, *args, **kwargs) -> Dict[str, float]:
-        self.schedule.state.change_training_phase("eval")
         logger.warning("Evaluating...")
         out = super(Adapter, self).evaluate(*args, **kwargs)
+        if "metric_key_prefix" in kwargs:
+            self.eval_metrics_prefix = kwargs["metric_key_prefix"]
 
-        self.schedule.state.change_training_phase("train")
+        # refresh exhausted evaluation iteration for possible next evaluation
+        self.eval_dataset = self.schedule.iterable_dataset("eval")
+
         return out
-

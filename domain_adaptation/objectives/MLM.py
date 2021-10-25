@@ -1,4 +1,4 @@
-from typing import List, Union, Iterable, Dict, Optional
+from typing import List, Union, Iterable, Dict, Optional, Iterator
 
 import torch
 from torch.nn import CrossEntropyLoss
@@ -44,16 +44,16 @@ class MaskedLanguageModeling(UnsupervisedObjective):
         if batch_features:
             yield self.collator(batch_features)
 
-    def get_dataset(self, split: str) -> TransformerAdaptationDataset:
+    def _get_inputs_iterator(self, split: str) -> Iterator:
         if self.texts is not None:
             texts_iter = iter(self.texts)
         else:
             texts_iter = AdaptationDataset.iter_text_file_per_line(self.texts_path)
 
         collated_iter = self._mask_some_tokens(texts_iter)
-        return TransformerAdaptationDataset(collated_iter, objective_id=id(self))
+        return collated_iter
 
-    def compute_loss(self, mlm_token_logits: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
+    def _compute_loss(self, mlm_token_logits: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
         # generic token classification loss, can be found e.g. in transformers.BertForMaskedLM
         loss_fct = CrossEntropyLoss()
         vocab_size = mlm_token_logits.size()[-1]

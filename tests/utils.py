@@ -1,15 +1,22 @@
 from domain_adaptation.utils import AdaptationArguments, StoppingStrategy
 
 paths = {"texts": {
-        "target_domain": {"ner": "mock_data/ner_texts_sup.txt",
-                          "translation": "mock_data/seq2seq_sources.txt",
-                          "unsup": "mock_data/domain_unsup.txt"},
-        "source_domain": {}},
+            "target_domain": {
+                "ner": "mock_data/ner_texts_sup.txt",
+                "translation": "mock_data/seq2seq_sources.txt",
+                "unsup": "mock_data/domain_unsup.txt"},
+            "source_domain": {}
+        },
         "labels": {
-        "target_domain": {"ner": "mock_data/ner_texts_sup_labels.txt",
-                          "translation": "mock_data/seq2seq_targets.txt"}
+            "target_domain": {
+                "ner": "mock_data/ner_texts_sup_labels.txt",
+                "translation": "mock_data/seq2seq_targets.txt"
+            }
         }
 }
+
+test_base_models = {"translation": "Helsinki-NLP/opus-mt-en-cs",
+                    "token_classification": "bert-base-multilingual-cased"}
 
 training_arguments = AdaptationArguments(output_dir="adaptation_output_dir",
                                          stopping_strategy=StoppingStrategy.FIRST_OBJECTIVE_NUM_EPOCHS,

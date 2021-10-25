@@ -1,4 +1,4 @@
-from typing import List, Dict, Iterable, Tuple, Optional, Union
+from typing import List, Dict, Iterable, Optional, Union, Iterator
 
 import torch
 from torch.nn import CrossEntropyLoss
@@ -6,7 +6,7 @@ from transformers import DataCollatorForTokenClassification
 
 from ..lang_module import LangModule
 from ..objectives.objective_base import SupervisedObjective
-from ..utils import AdaptationDataset, TransformerAdaptationDataset, Head
+from ..utils import AdaptationDataset, Head
 
 
 class TokenClassification(SupervisedObjective):
@@ -81,7 +81,7 @@ class TokenClassification(SupervisedObjective):
                                           "does not match a number of token labels (%s)" \
                                           % (self.compatible_head, num_outputs, num_labels)
 
-    def get_dataset(self, split: str) -> TransformerAdaptationDataset:
+    def _get_inputs_iterator(self, split: str) -> Iterator:
 
         if self.texts is not None:
             texts_iter = iter(self.texts)
@@ -92,11 +92,11 @@ class TokenClassification(SupervisedObjective):
 
         aligned_collated_iter = self._wordpiece_token_label_alignment(texts_iter, labels_iter)
 
-        return TransformerAdaptationDataset(aligned_collated_iter, objective_id=id(self))
+        return aligned_collated_iter
 
-    def compute_loss(self, logit_outputs: torch.FloatTensor,
-                     labels: torch.LongTensor,
-                     attention_mask: Optional[torch.LongTensor] = None) -> torch.FloatTensor:
+    def _compute_loss(self, logit_outputs: torch.FloatTensor,
+                      labels: torch.LongTensor,
+                      attention_mask: Optional[torch.LongTensor] = None) -> torch.FloatTensor:
         # generic token classification loss, originally implemented e.g. in transformers.BertForTokenClassification
 
         loss_fct = CrossEntropyLoss()
@@ -118,8 +118,8 @@ class SequenceClassification(SupervisedObjective):
 
     compatible_head = Head.SEQ_CLASSIFICATION
 
-    def get_dataset(self, split: str) -> AdaptationDataset:
+    def _get_inputs_iterator(self, split: str) -> Iterator:
         raise NotImplementedError()
 
-    def compute_loss(self, logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
+    def _compute_loss(self, logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
         raise NotImplementedError()

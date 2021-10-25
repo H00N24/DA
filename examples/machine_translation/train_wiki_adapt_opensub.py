@@ -8,7 +8,7 @@ We perform the following steps:
 """
 from domain_adaptation.adapter import Adapter
 from domain_adaptation.lang_module import LangModule
-from domain_adaptation.objectives.CLM import CausalDecoderLanguageModelingSup
+from domain_adaptation.objectives.CLM import DecoderSequence2Sequence
 from domain_adaptation.objectives.denoising import DenoisingObjective
 from domain_adaptation.schedules import StridedSchedule, SequentialSchedule
 from domain_adaptation.utils import AdaptationArguments, StoppingStrategy, Head
@@ -18,13 +18,13 @@ from examples.opus import OPUSDataset
 
 tmp_data_dir = "."
 
-train_clm_source = OPUSDataset("wikimedia", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
-val_clm_source = OPUSDataset("wikimedia", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=100)
+train_clm_source = OPUSDataset("wikimedia", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=1000)
+val_clm_source = OPUSDataset("wikimedia", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=123)
 
 # train_adapt_source = OPUSDataset("OpenSubtitles", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
 # val_adapt_source = OPUSDataset("OpenSubtitles", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=100)
-train_adapt_source = OPUSDataset("Bible", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
-val_adapt_source = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=100)
+train_adapt_source = OPUSDataset("Bible", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=1000)
+val_adapt_source = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=123)
 
 
 # 2. Perform a combined adaptation on both parallel data and monolingual, OpenSubtitles domain: Strided schedule.
@@ -34,19 +34,19 @@ training_arguments = AdaptationArguments(output_dir="adaptation_output_dir",
                                          do_eval=True,
                                          gradient_accumulation_steps=2,
                                          logging_steps=1,
-                                         eval_steps=2,
-                                         num_train_epochs=10,
-                                         evaluation_strategy="steps")
+                                         eval_steps=7,
+                                         num_train_epochs=3,
+                                         evaluation_strategy="steps",)
 
 lang_module = LangModule("Helsinki-NLP/opus-mt-en-cs", head_types=[Head.LANGUAGE_MODEL])
 lang_module.reinitialize()
 
-clm_training = CausalDecoderLanguageModelingSup(lang_module,
-                                                texts_or_path=train_clm_source.source,
-                                                labels_or_path=train_clm_source.target,
-                                                val_texts_or_path=val_clm_source.source,
-                                                val_labels_or_path=val_clm_source.target,
-                                                source_lang_id="en", target_lang_id="cs", batch_size=1)
+clm_training = DecoderSequence2Sequence(lang_module,
+                                        texts_or_path=train_clm_source.source,
+                                        labels_or_path=train_clm_source.target,
+                                        val_texts_or_path=val_clm_source.source,
+                                        val_labels_or_path=val_clm_source.target,
+                                        source_lang_id="en", target_lang_id="cs", batch_size=1)
 
 denoising_adaptation = DenoisingObjective(lang_module,
                                           texts_or_path=train_adapt_source.source,

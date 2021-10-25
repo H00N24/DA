@@ -2,10 +2,12 @@ import abc
 import collections
 import itertools
 import random
-from typing import List, Tuple, Optional, Union
+from typing import List, Tuple, Optional, Union, Iterator
+
+from transformers import DataCollatorForSeq2Seq
 
 from ..lang_module import LangModule
-from ..objectives.objective_base import UnsupervisedObjective, LanguageModelingMixin
+from ..objectives.objective_base import UnsupervisedObjective, Sequence2SequenceMixin, DecoderSequence2SequenceMixin
 from ..utils import AdaptationDataset, TransformerAdaptationDataset
 
 
@@ -45,7 +47,7 @@ class NoisingStrategy(abc.ABC):
         for sep in self.sentence_sep_chars:
             # split each sentence in the list and chain the result, omit the empty sentences
             out_sents = list(itertools.chain(*[[s+sep if s and sep in sent else s for s in sent.split(sep)]
-                                               for sent in out_sents if sent and self._should_be_applied()]))
+                                               for sent in out_sents if sent]))
 
         # separators should keep their positions after the noising
         seps = [sent[-1] if sent[-1] in self.sentence_sep_chars else "" for sent in out_sents if sent]
@@ -92,7 +94,7 @@ class Rotate(NoisingStrategy):
                 out_text = self._correct_special_chars_spacing(" ".join(new_tokens.values()))
             else:
                 out_text = text
-
+            # TODO: returns the same text, needs to be corrected
             return out_text
 
 
@@ -120,7 +122,7 @@ class Masking(NoisingStrategy):
         pass
 
 
-class DenoisingObjective(UnsupervisedObjective, LanguageModelingMixin):
+class DenoisingObjective(DecoderSequence2SequenceMixin, UnsupervisedObjective):
 
     def __init__(self, lang_module: LangModule, batch_size: int,
                  texts_or_path: Union[str, List[str]], val_texts_or_path: Optional[Union[str, List[str]]] = None,
@@ -130,11 +132,13 @@ class DenoisingObjective(UnsupervisedObjective, LanguageModelingMixin):
         super().__init__(lang_module, batch_size, texts_or_path, val_texts_or_path)
 
         if noising_strategies is None:
-            self.noising_strategies = [Shuffle(application_ratio=noising_prob), Rotate(application_ratio=noising_prob)]
+            self.noising_strategies = [Shuffle(application_ratio=noising_prob)]
         else:
             self.noising_strategies = noising_strategies
 
         self.noising_per_sentence = noising_per_sentence
+
+        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer)
 
     def _apply_noise(self, text: str) -> str:
         out_text = text
@@ -142,11 +146,10 @@ class DenoisingObjective(UnsupervisedObjective, LanguageModelingMixin):
             out_text = noising_fn(out_text, self.noising_per_sentence)
         return out_text
 
-    def get_dataset(self, split: str) -> AdaptationDataset:
-        source_texts_iter = self._per_split_iterators(split)
-        target_texts_iter = self._per_split_iterators(split)
+    def _get_inputs_iterator(self, split: str) -> Iterator:
+        source_texts_iter, target_texts_iter = self._per_split_iterators(split)
 
         input_texts_noised = (self._apply_noise(text) for text in source_texts_iter)
-        collated_iter = self._pad_collate_inputs(input_texts_noised, target_texts_iter)
+        collated_iter = self._get_seq2seq_collated_iterator(input_texts_noised, target_texts_iter)
 
-        return TransformerAdaptationDataset(collated_iter, objective_id=id(self))
+        return collated_iter
