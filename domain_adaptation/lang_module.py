@@ -13,7 +13,7 @@ class LangModule(torch.nn.Module):
 
     tokenizer: PreTrainedTokenizer
     # ModuleDict reassures a registration of its values by backward hooks
-    trainable_models = torch.nn.ModuleDict()
+    trainable_models: torch.nn.ModuleDict
     heads_output_sizes: Dict[str, int] = {}
 
     def __init__(self, model_name_or_path: str, head_types: List[Head],
@@ -22,35 +22,39 @@ class LangModule(torch.nn.Module):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
 
         head_kwargs = head_kwargs if head_kwargs is not None else [{}] * len(head_types)
-
-        self._load_pretrained_with_heads(model_name_or_path, head_types, head_kwargs)
+        modules_dict = self._load_pretrained_with_heads(model_name_or_path, head_types, head_kwargs)
+        self.trainable_models = torch.nn.ModuleDict(modules_dict)
 
     def _load_pretrained_with_heads(self, model_name_or_path, head_types: List[Head],
-                                    head_kwargs: List[Dict[str, Any]]) -> None:
+                                    head_kwargs: List[Dict[str, Any]]) -> Dict[str, torch.nn.Module]:
         assert len(head_types) == len(head_kwargs), "A number of head arguments is different than a number of heads."
+        init_trainable_models = {}
+
         for head_type, head_kwarg in zip(head_types, head_kwargs):
             head_str = head_type.name
             if head_type == Head.SEQ_CLASSIFICATION:
-                self.trainable_models[head_str] = AutoModelForSequenceClassification.from_pretrained(model_name_or_path,
+                init_trainable_models[head_str] = AutoModelForSequenceClassification.from_pretrained(model_name_or_path,
                                                                                                      **head_kwarg)
             elif head_type == Head.TOKEN_CLASSIFICATION:
-                self.trainable_models[head_str] = AutoModelForTokenClassification.from_pretrained(model_name_or_path,
+                init_trainable_models[head_str] = AutoModelForTokenClassification.from_pretrained(model_name_or_path,
                                                                                                   **head_kwarg)
             elif head_type == Head.LANGUAGE_MODEL:
-                self.trainable_models[head_str] = AutoModelWithLMHead.from_pretrained(model_name_or_path, **head_kwarg)
+                init_trainable_models[head_str] = AutoModelWithLMHead.from_pretrained(model_name_or_path, **head_kwarg)
             else:
-                self.trainable_models[head_str] = torch.load(model_name_or_path, **head_kwarg)
+                init_trainable_models[head_str] = torch.load(model_name_or_path, **head_kwarg)
 
             # this applies to the <2nd-added models: they adopt the shared parameters of the first lang_module
-            if len(self.trainable_models) > 1:
-                unmatched_modules = self._partially_match_models(self.trainable_models[head_types[0].name],
-                                                                 self.trainable_models[head_str])
+            if len(init_trainable_models) > 1:
+                unmatched_modules = self._partially_match_models(init_trainable_models[head_types[0].name],
+                                                                 init_trainable_models[head_str])
                 # this can contain a deep stack of layers, hence in general, it can not be checked automatically
                 print("These layers of the laded %s were not merged: %s" % (head_str, unmatched_modules))
 
-            # TODO: register expected output sizes?
-            last_layer = list(self.trainable_models[head_str].parameters())[-1]
+            # register expected output sizes?
+            last_layer = list(init_trainable_models[head_str].parameters())[-1]
             self.heads_output_sizes[head_str] = last_layer.shape[-1]
+
+        return init_trainable_models
 
     @staticmethod
     def _partially_match_models(orig_model: torch.nn.Module,

@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Tuple, Union
+from typing import List, Dict, Tuple, Union, Optional
 
 import torch
 from transformers import Trainer, BatchEncoding
@@ -82,3 +82,6 @@ class Adapter(Trainer):
         self.eval_dataset = self.schedule.iterable_dataset("eval")
 
         return out
+
+    def save_model(self, output_dir: Optional[str] = None) -> None:
+        self._save(output_dir)

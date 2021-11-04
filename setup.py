@@ -20,6 +20,7 @@ setup(
         "torch>=1.7",
         "transformers[sentencepiece]==4.10.2",
         "torch",
-        "pytest"
+        "pytest",
+        "sacrebleu"
     ],
 )

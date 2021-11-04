@@ -1,10 +1,10 @@
 import itertools
 
 from domain_adaptation.lang_module import LangModule
-from domain_adaptation.objectives.CLM import DecoderSequence2Sequence
 from domain_adaptation.objectives.MLM import MaskedLanguageModeling
 from domain_adaptation.objectives.classification import TokenClassification
 from domain_adaptation.objectives.denoising import DenoisingObjective
+from domain_adaptation.objectives.seq2seq import DecoderSequence2Sequence
 from domain_adaptation.schedules import SequentialSchedule, TrainingSchedule, StridedSchedule
 from domain_adaptation.utils import Head, AdaptationArguments, StoppingStrategy
 from utils import test_base_models

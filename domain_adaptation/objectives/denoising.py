@@ -6,9 +6,9 @@ from typing import List, Tuple, Optional, Union, Iterator
 
 from transformers import DataCollatorForSeq2Seq
 
+from .seq2seq import DecoderSequence2SequenceMixin
 from ..lang_module import LangModule
-from ..objectives.objective_base import UnsupervisedObjective, Sequence2SequenceMixin, DecoderSequence2SequenceMixin
-from ..utils import AdaptationDataset, TransformerAdaptationDataset
+from ..objectives.objective_base import UnsupervisedObjective
 
 
 class NoisingStrategy(abc.ABC):
