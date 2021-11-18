@@ -1,4 +1,4 @@
-# DA 🐴 Domain Adaptation ✨ library 🦄
+# DA 🐴✨🦄 Domain Adaptation library
 
 DA library will help you to easily adapt a language model to your own data domain or task.
 
