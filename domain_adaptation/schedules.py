@@ -34,9 +34,8 @@ class TrainingSchedule(abc.ABC):
     def objectives_log(self, split: str) -> Dict[str, float]:
         out_logs = {}
         n_last_steps = self.args.logging_steps if split == "train" else self.args.eval_steps
-        for oid, objective in self.objectives.items():
-            mean_n_last_loss = sum(objective.loss_history[split][-n_last_steps:]) / n_last_steps
-            out_logs["%s_%s_loss" % (split, objective)] = mean_n_last_loss
+        for objective in self.objectives.values():
+            out_logs = {**out_logs, **objective.per_objective_log(split, n_last_steps)}
 
         return out_logs
 
@@ -53,12 +52,13 @@ class TrainingSchedule(abc.ABC):
     def _should_stop(self) -> bool:
         if self.args.stopping_strategy in (StoppingStrategy.FIRST_OBJECTIVE_CONVERGES,
                                            StoppingStrategy.ALL_OBJECTIVES_CONVERGE):
-            obj_converged = [oid for oid in self.objectives.keys() if self._objective_converged(oid)]
-            logger.warning("Converged objectives" % [self.objectives[o] for o in obj_converged])
+            converged_objectives = [obj for obj in self.objectives.values() if obj.has_converged()]
+            if converged_objectives:
+                logger.warning("Converged objectives" % converged_objectives)
             if self.args.stopping_strategy == StoppingStrategy.FIRST_OBJECTIVE_CONVERGES:
-                return len(obj_converged) > 0
+                return len(converged_objectives) > 0
             else:
-                return len(obj_converged) == len(self.objectives)
+                return len(converged_objectives) == len(self.objectives)
 
         elif self.args.stopping_strategy in (StoppingStrategy.FIRST_OBJECTIVE_NUM_EPOCHS,
                                              StoppingStrategy.ALL_OBJECTIVES_NUM_EPOCHS):

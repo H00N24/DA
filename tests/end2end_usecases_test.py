@@ -1,6 +1,7 @@
 from transformers import AutoModelForSeq2SeqLM
 
 from domain_adaptation.adapter import Adapter
+from domain_adaptation.evaluators.generative import BLEU
 from domain_adaptation.lang_module import LangModule
 from domain_adaptation.objectives.MLM import MaskedLanguageModeling
 from domain_adaptation.objectives.classification import TokenClassification
@@ -43,12 +44,20 @@ def test_adaptation_ner():
 
 
 def test_adaptation_translation():
+    # 1. pick the models - randomly pre-initialize the appropriate heads
     lang_module = LangModule(test_base_models["translation"], head_types=[Head.LANGUAGE_MODEL])
 
+    # (optional) pick train and validation evaluators for the objectives
+    seq2seq_evaluators = [BLEU(decides_convergence=True)]
+
     # 2. pick objectives - we use BART's objective for adaptation and mBART's seq2seq objective for fine-tuning
-    objectives = [DenoisingObjective(lang_module, batch_size=1, texts_or_path=paths["texts"]["target_domain"]["unsup"]),
+    objectives = [DenoisingObjective(lang_module,
+                                     batch_size=1,
+                                     texts_or_path=paths["texts"]["target_domain"]["unsup"],
+                                     val_evaluators=seq2seq_evaluators),
                   DecoderSequence2Sequence(lang_module, batch_size=1,
                                            texts_or_path=paths["texts"]["target_domain"]["translation"],
+                                           val_evaluators=seq2seq_evaluators,
                                            labels_or_path=paths["labels"]["target_domain"]["translation"],
                                            source_lang_id="en", target_lang_id="cs")]
     # 3. pick a schedule of the selected objectives
@@ -64,6 +73,6 @@ def test_adaptation_translation():
 
     # 6. reload and use it like any other Hugging Face model
     # TODO: some reloads need persisted config
-    translator_model = AutoModelForSeq2SeqLM.from_pretrained("translator_model")
+    # translator_model = AutoModelForSeq2SeqLM.from_pretrained("translator_model")
 
 # test_adaptation_translation()

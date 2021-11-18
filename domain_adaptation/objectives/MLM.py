@@ -1,9 +1,10 @@
-from typing import List, Union, Iterable, Dict, Optional, Iterator
+from typing import List, Union, Iterable, Dict, Optional, Iterator, Sequence
 
 import torch
 from torch.nn import CrossEntropyLoss
 from transformers import DataCollatorForLanguageModeling, DataCollatorForWholeWordMask
 
+from ..evaluators.evaluator_base import EvaluatorBase
 from ..lang_module import LangModule
 from ..objectives.objective_base import UnsupervisedObjective
 from ..utils import AdaptationDataset, TransformerAdaptationDataset, Head
@@ -17,11 +18,21 @@ class MaskedLanguageModeling(UnsupervisedObjective):
     """
     compatible_head = Head.LANGUAGE_MODEL
 
-    def __init__(self, lang_module: LangModule, batch_size: int, texts_or_path: Union[str, List[str]],
+    def __init__(self,
+                 lang_module: LangModule,
+                 batch_size: int,
+                 texts_or_path: Union[str, List[str]],
                  val_texts_or_path: Optional[Union[str, List[str]]] = None,
+                 train_evaluators: Sequence[EvaluatorBase] = (),
+                 val_evaluators: Sequence[EvaluatorBase] = (),
                  masking_application_prob: float = 0.15,
                  full_token_masking: bool = False):
-        super().__init__(lang_module, batch_size, texts_or_path, val_texts_or_path)
+        super().__init__(lang_module=lang_module,
+                         batch_size=batch_size,
+                         texts_or_path=texts_or_path,
+                         val_texts_or_path=val_texts_or_path,
+                         train_evaluators=train_evaluators,
+                         val_evaluators=val_evaluators)
         if full_token_masking:
             self.collator = DataCollatorForWholeWordMask(lang_module.tokenizer,
                                                          mlm_probability=masking_application_prob)

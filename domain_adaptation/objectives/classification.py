@@ -1,9 +1,10 @@
-from typing import List, Dict, Iterable, Optional, Union, Iterator
+from typing import List, Dict, Iterable, Optional, Union, Iterator, Sequence
 
 import torch
 from torch.nn import CrossEntropyLoss
 from transformers import DataCollatorForTokenClassification
 
+from ..evaluators.evaluator_base import EvaluatorBase
 from ..lang_module import LangModule
 from ..objectives.objective_base import SupervisedObjective
 from ..utils import AdaptationDataset, Head
@@ -19,8 +20,17 @@ class TokenClassification(SupervisedObjective):
     def __init__(self, lang_module: LangModule, batch_size: int,
                  texts_or_path: Union[str, List[str]], labels_or_path: Union[str, List[str]],
                  val_texts_or_path: Optional[Union[str, List[str]]] = None,
-                 val_labels_or_path: Optional[Union[str, List[str]]] = None):
-        super().__init__(lang_module, batch_size, texts_or_path, labels_or_path, val_texts_or_path, val_labels_or_path)
+                 val_labels_or_path: Optional[Union[str, List[str]]] = None,
+                 train_evaluators: Sequence[EvaluatorBase] = (),
+                 val_evaluators: Sequence[EvaluatorBase] = ()):
+        super().__init__(lang_module=lang_module,
+                         batch_size=batch_size,
+                         texts_or_path=texts_or_path,
+                         labels_or_path=labels_or_path,
+                         val_texts_or_path=val_texts_or_path,
+                         val_labels_or_path=val_labels_or_path,
+                         train_evaluators=train_evaluators,
+                         val_evaluators=val_evaluators)
 
         self.collator = DataCollatorForTokenClassification(lang_module.tokenizer)
 

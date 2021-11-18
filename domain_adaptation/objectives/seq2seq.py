@@ -1,9 +1,10 @@
 import abc
-from typing import List, Union, Optional, Iterable, Dict, Iterator, Callable
+from typing import List, Union, Optional, Iterable, Dict, Iterator, Callable, Sequence
 
 import torch
 from transformers import DataCollatorForSeq2Seq
 
+from ..evaluators.evaluator_base import EvaluatorBase
 from ..lang_module import LangModule
 from ..objectives.objective_base import SupervisedObjective, Objective
 from ..utils import Head
@@ -70,8 +71,17 @@ class DecoderSequence2Sequence(DecoderSequence2SequenceMixin, SupervisedObjectiv
                  labels_or_path: Union[str, List[str]],
                  source_lang_id: str, target_lang_id: str,
                  val_texts_or_path: Optional[Union[str, List[str]]] = None,
-                 val_labels_or_path: Optional[Union[str, List[str]]] = None):
-        super().__init__(lang_module, batch_size, texts_or_path, labels_or_path, val_texts_or_path, val_labels_or_path)
+                 val_labels_or_path: Optional[Union[str, List[str]]] = None,
+                 train_evaluators: Sequence[EvaluatorBase] = (),
+                 val_evaluators: Sequence[EvaluatorBase] = ()):
+        super().__init__(lang_module=lang_module,
+                         batch_size=batch_size,
+                         texts_or_path=texts_or_path,
+                         labels_or_path=labels_or_path,
+                         val_texts_or_path=val_texts_or_path,
+                         val_labels_or_path=val_labels_or_path,
+                         train_evaluators=train_evaluators,
+                         val_evaluators=val_evaluators)
 
         self.tokenizer.src_lang = source_lang_id
         self.tokenizer.tgt_lang = target_lang_id

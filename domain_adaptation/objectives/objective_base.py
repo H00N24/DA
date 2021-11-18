@@ -1,9 +1,10 @@
 import abc
-from typing import List, Union, Optional, Iterable, Tuple, Dict
+from typing import List, Union, Optional, Iterable, Tuple, Dict, Sequence
 
 import torch
 from tqdm import trange
 
+from ..evaluators.evaluator_base import EvaluatorBase
 from ..lang_module import LangModule
 from ..utils import AdaptationDataset, Head, TransformerAdaptationDataset
 
@@ -21,20 +22,28 @@ class Objective(abc.ABC):
 
     dataset_length: Dict[str, int]
     loss_history: Dict[str, List[float]]
+    outputs_history: Dict[str, List[Tuple[torch.FloatTensor, torch.LongTensor]]]
+    evaluations_history: Dict[str, Dict[EvaluatorBase, List[float]]]
     progressbar: Dict[str, trange]
+    evaluators: Dict[str, List[EvaluatorBase]]
 
     def __init__(self,
                  lang_module: LangModule,
                  batch_size: int,
                  texts_or_path: Union[str, List[str]],
-                 val_texts_or_path: Optional[Union[str, List[str]]] = None):
+                 val_texts_or_path: Optional[Union[str, List[str]]] = None,
+                 train_evaluators: Sequence[EvaluatorBase] = (),
+                 val_evaluators: Sequence[EvaluatorBase] = ()):
         self.batch_size = batch_size
         self.tokenizer = lang_module.tokenizer
         self.compatible_head_model = self.pick_compatible_head_model(lang_module)
 
         self.epoch = 0
         self.dataset_length = {"train": 0, "eval": 0}
-        self.loss_history = {"train": [], "eval": []}
+        self.loss_history = {"train": [], "eval": []}  # we treat loss separately, it needs to be evaluated immediately
+        self.outputs_history = {"train": [], "eval": []}
+        self.evaluators = {"train": [], "eval": []}
+        self.evaluations_history = {"train": {}, "eval": {}}
         self.progressbar = {}
 
         self.texts = None
@@ -51,6 +60,12 @@ class Objective(abc.ABC):
             self.dataset_length["train"] = len(self.texts)
         assert self.dataset_length, \
             "Objective %s was initialized with texts_or_path of zero length, this wouldn't work :("
+        for split, given_evaluators in zip(("train", "eval"), (train_evaluators, val_evaluators)):
+            for given_evaluator in given_evaluators:
+                if given_evaluator.compatible_head != self.compatible_head:
+                    raise ValueError("%s got incompatible evaluator: %s" % (self, given_evaluator))
+                self.evaluators[split].append(given_evaluator)
+                self.evaluations_history[split][given_evaluator] = []
 
         if val_texts_or_path is not None:
             if type(val_texts_or_path) == str:
@@ -61,11 +76,39 @@ class Objective(abc.ABC):
                 self.val_texts = val_texts_or_path
                 self.dataset_length["eval"] = len(self.val_texts)
 
+    def per_objective_log(self, split: str, num_last_steps: int) -> Dict[str, float]:
+        out_logs = {}
+        mean_n_last_loss = sum(self.loss_history[split][-num_last_steps:]) / num_last_steps
+        out_logs["%s_%s_loss" % (split, self)] = mean_n_last_loss
+        for evaluator in self.evaluators[split]:
+            n_last_logits = [logits for logits, labels in self.outputs_history[split][-num_last_steps:]]
+            n_last_labels = [labels for logits, labels in self.outputs_history[split][-num_last_steps:]]
+
+            evaluator_value = evaluator(n_last_logits, n_last_labels, self.tokenizer)
+            self.evaluations_history[split][evaluator] = evaluator_value
+            out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
+
+        # LM logits each of shape (batch_size, n_tokens, vocab_size) can consume a lot of memory
+        # we erase the raw outputs after the logging, to save space, but we remember the values of Evaluators
+        self.outputs_history[split] = []
+        return out_logs
+
+    def has_converged(self) -> bool:
+        passed_patience_evals = len(self.loss_history["eval"]) >= self.args.stopping_patience
+        did_not_improve = max(self.loss_history["eval"][:-self.args.stopping_patience]) >= \
+                          max(self.loss_history["eval"][-self.args.stopping_patience:])
+
+        return passed_patience_evals and did_not_improve
+
+    def _register_outputs(self, split: str, logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> None:
+        self.outputs_history[split].append((logit_outputs.detach().cpu(), labels.detach().cpu()))
+
     @abc.abstractmethod
     def _compute_loss(self, logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
         pass
 
     def compute_loss(self, logit_outputs: torch.FloatTensor, labels: torch.LongTensor, split: str) -> torch.FloatTensor:
+        self._register_outputs(split, logit_outputs, labels)
         loss = self._compute_loss(logit_outputs, labels)
         self.loss_history[split].append(loss.item())
 
@@ -149,12 +192,21 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
     val_labels_path: Optional[str] = None
     val_labels: Optional[List[str]] = None
 
-    def __init__(self, lang_module: LangModule, batch_size: int,
+    def __init__(self,
+                 lang_module: LangModule,
+                 batch_size: int,
                  texts_or_path: Union[str, List[str]],
                  labels_or_path: Union[str, List[str]],
                  val_texts_or_path: Optional[Union[str, List[str]]] = None,
-                 val_labels_or_path: Optional[Union[str, List[str]]] = None):
-        super().__init__(lang_module, batch_size, texts_or_path, val_texts_or_path)
+                 val_labels_or_path: Optional[Union[str, List[str]]] = None,
+                 train_evaluators: Sequence[EvaluatorBase] = (),
+                 val_evaluators: Sequence[EvaluatorBase] = ()):
+        super().__init__(lang_module=lang_module,
+                         batch_size=batch_size,
+                         texts_or_path=texts_or_path,
+                         val_texts_or_path=val_texts_or_path,
+                         train_evaluators=train_evaluators,
+                         val_evaluators=val_evaluators)
 
         if type(labels_or_path) == str:
             self.labels_path = labels_or_path
