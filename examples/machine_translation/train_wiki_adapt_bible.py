@@ -8,8 +8,8 @@ We perform the following steps:
 """
 from domain_adaptation.adapter import Adapter
 from domain_adaptation.lang_module import LangModule
-from domain_adaptation.objectives.CLM import DecoderSequence2Sequence
 from domain_adaptation.objectives.denoising import DenoisingObjective
+from domain_adaptation.objectives.seq2seq import DecoderSequence2Sequence
 from domain_adaptation.schedules import StridedSchedule, SequentialSchedule
 from domain_adaptation.utils import AdaptationArguments, StoppingStrategy, Head
 
