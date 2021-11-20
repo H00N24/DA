@@ -17,7 +17,7 @@ sup_translation_texts_src = "mock_data/seq2seq_sources.txt"
 sup_translation_texts_tgt = "mock_data/seq2seq_targets.txt"
 
 args = AdaptationArguments(output_dir="adaptation_output_dir",
-                           stopping_strategy=StoppingStrategy.FIRST_OBJECTIVE_CONVERGES,
+                           stopping_strategy=StoppingStrategy.FIRST_OBJECTIVE_CONVERGED,
                            do_train=True,
                            do_eval=True,
                            gradient_accumulation_steps=2,

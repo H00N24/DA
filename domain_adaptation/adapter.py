@@ -16,11 +16,11 @@ class Adapter(Trainer):
     1. Gets LangModule as common torch.nn.Module, do all the parallel wrapping, optimizer handling etc. (init())
     2. Provides samples in the ordering given by the Scheduler (get_dataloader())
     3. Logs per-objective (get_test_dataloader() + evaluation_loop())
-    4.
+    4. Keeps the reference to the adapted model after the training process
 
     """
 
-    permitted_args = ["args", "tokenizer", "compute_metrics", "callbacks", "optimizers"]
+    permitted_args = ["args", "tokenizer", "callbacks", "optimizers"]
     eval_metrics_prefix = "eval"
 
     def __init__(self, lang_module: LangModule, schedule: TrainingSchedule, args: AdaptationArguments, **kwargs):
@@ -38,7 +38,7 @@ class Adapter(Trainer):
                          train_dataset=self.schedule.iterable_dataset(split="train"),
                          eval_dataset=self.schedule.iterable_dataset(split="eval"),
                          data_collator=self.flattened_collator,
-                         compute_metrics=None,  # would require a static prediction format, but it varies
+                         compute_metrics=None,  # would require a static prediction format among objectives
                          callbacks=orig_callbacks + [schedule.should_stop_check_callback()],
                          **kwargs)
 

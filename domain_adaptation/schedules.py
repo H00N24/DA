@@ -27,7 +27,7 @@ class TrainingSchedule(abc.ABC):
     @abc.abstractmethod
     def _sample_datasets(self, split: str, epoch: int) -> Iterable[Dict[str, Any]]:
         """
-        :return:
+        :return: An iterable over the Objectives corresponding to a single epoch.
         """
         pass
 
@@ -50,19 +50,24 @@ class TrainingSchedule(abc.ABC):
         return self.objectives[oid].epoch > self.args.num_train_epochs
 
     def _should_stop(self) -> bool:
-        if self.args.stopping_strategy in (StoppingStrategy.FIRST_OBJECTIVE_CONVERGES,
-                                           StoppingStrategy.ALL_OBJECTIVES_CONVERGE):
+        # a number of epochs per all objectives is an upper-bound of the training duration
+        obj_passed_epochs = [oid for oid in self.objectives.keys() if self._objective_passed_epochs(oid)]
+        if len(obj_passed_epochs) == len(self.objectives):
+            return True
+
+        # if the upper bound does not apply, check for the user-selected stopping strategy,
+        if self.args.stopping_strategy in (StoppingStrategy.FIRST_OBJECTIVE_CONVERGED,
+                                           StoppingStrategy.ALL_OBJECTIVES_CONVERGED):
             converged_objectives = [obj for obj in self.objectives.values() if obj.has_converged()]
             if converged_objectives:
                 logger.warning("Converged objectives" % converged_objectives)
-            if self.args.stopping_strategy == StoppingStrategy.FIRST_OBJECTIVE_CONVERGES:
+            if self.args.stopping_strategy == StoppingStrategy.FIRST_OBJECTIVE_CONVERGED:
                 return len(converged_objectives) > 0
             else:
                 return len(converged_objectives) == len(self.objectives)
 
         elif self.args.stopping_strategy in (StoppingStrategy.FIRST_OBJECTIVE_NUM_EPOCHS,
                                              StoppingStrategy.ALL_OBJECTIVES_NUM_EPOCHS):
-            obj_passed_epochs = [oid for oid in self.objectives.keys() if self._objective_passed_epochs(oid)]
             logger.warning("Objectives that passed max_epochs: %s" % [self.objectives[o] for o in obj_passed_epochs])
             if self.args.stopping_strategy == StoppingStrategy.FIRST_OBJECTIVE_NUM_EPOCHS:
                 return len(obj_passed_epochs) > 0
@@ -81,8 +86,6 @@ class TrainingSchedule(abc.ABC):
             def on_log(cls, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs) -> None:
                 """ Event called by Trainer after the given `logging_steps`."""
                 self.remember_if_should_stop()
-
-                return control
 
         return AdaptationStoppingCallback()
 
@@ -103,7 +106,7 @@ class TrainingSchedule(abc.ABC):
 
         return loss
 
-    def _combine_datasets(self, split: str, termination_steps: int) -> Iterable[Dict[str, Any]]:
+    def _combine_datasets(self, split: str) -> Iterable[Dict[str, Any]]:
         """
         Combines datasets, per-batch.
         This main training iteration is upper-bound by a `num_epochs` over a full data set.
@@ -126,11 +129,14 @@ class TrainingSchedule(abc.ABC):
                 yield batch_encoding
                 num_steps += 1
 
-            num_passed_epochs = num_steps // termination_steps
+            num_passed_epochs += 1
 
     def iterable_dataset(self, split: str) -> TransformerAdaptationDataset:
-        length_combined = sum(o.dataset_length[split] for o in self.objectives.values())
-        return TransformerAdaptationDataset(self._combine_datasets(split, length_combined), length_combined)
+        # upper-bound of the number of training steps is used for learning rate scheduling
+        length_combined = int(sum(o.dataset_length[split] for o in self.objectives.values())
+                              * self.args.num_train_epochs)
+
+        return TransformerAdaptationDataset(self._combine_datasets(split), length_combined)
 
 
 class SequentialSchedule(TrainingSchedule):

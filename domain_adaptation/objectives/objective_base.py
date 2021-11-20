@@ -121,13 +121,11 @@ class Objective(abc.ABC):
     def _get_inputs_iterator(self, split: str) -> Iterable:
         pass
 
-    def get_dataset(self, split: str,
-                    objective_i: int,
-                    device: Union[str, torch.device],
+    def get_dataset(self, split: str, objective_i: int, device: Union[str, torch.device],
                     epoch: int = 0) -> AdaptationDataset:
         self.epoch = epoch
 
-        self.progressbar[split] = trange(self.dataset_length[split],
+        self.progressbar[split] = trange(self.dataset_length[split] // self.batch_size,
                                          desc=str(self),
                                          unit="batches",
                                          position=objective_i,
