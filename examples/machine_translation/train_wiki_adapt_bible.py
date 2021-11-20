@@ -18,16 +18,16 @@ from examples.opus import OPUSDataset
 
 tmp_data_dir = "."
 
-train_source = OPUSDataset("wikimedia", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=20)
-train_val_source = OPUSDataset("wikimedia", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=7)
+train_source = OPUSDataset("wikimedia", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
+train_val_source = OPUSDataset("wikimedia", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=200)
 
-adapt_source = OPUSDataset("Bible", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=20)
-adapt_val_source = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=7)
+adapt_source = OPUSDataset("Bible", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
+adapt_val_source = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=200)
 
 
 # 2. Perform a combined adaptation on both parallel data and monolingual, OpenSubtitles domain: Strided schedule.
 training_arguments = AdaptationArguments(output_dir="adaptation_output_dir",
-                                         stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_NUM_EPOCHS,
+                                         stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          do_train=True,
                                          do_eval=True,
                                          gradient_accumulation_steps=4,
@@ -44,12 +44,12 @@ clm_training = DecoderSequence2Sequence(lang_module,
                                         labels_or_path=train_source.target,
                                         val_texts_or_path=train_val_source.source,
                                         val_labels_or_path=train_val_source.target,
-                                        source_lang_id="en", target_lang_id="cs", batch_size=2)
+                                        source_lang_id="en", target_lang_id="cs", batch_size=16)
 
 denoising_adaptation = DenoisingObjective(lang_module,
                                           texts_or_path=adapt_source.source,
                                           val_texts_or_path=adapt_val_source.source,
-                                          batch_size=2)
+                                          batch_size=16)
 
 schedule = StridedSchedule(objectives=[clm_training, denoising_adaptation], args=training_arguments)
 
