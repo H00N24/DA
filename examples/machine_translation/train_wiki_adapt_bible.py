@@ -18,22 +18,22 @@ from examples.opus import OPUSDataset
 
 tmp_data_dir = "."
 
-train_source = OPUSDataset("wikimedia", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=10)
-train_val_source = OPUSDataset("wikimedia", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=8)
+train_source = OPUSDataset("wikimedia", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
+train_val_source = OPUSDataset("wikimedia", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=200)
 
-adapt_source = OPUSDataset("Bible", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=10)
-adapt_val_source = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=8)
+adapt_source = OPUSDataset("Bible", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
+adapt_val_source = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=200)
 
 
 # 2. Perform a combined adaptation on both parallel data and monolingual, OpenSubtitles domain: Strided schedule.
 training_arguments = AdaptationArguments(output_dir="adaptation_output_dir",
-                                         stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGE,
+                                         stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          do_train=True,
                                          do_eval=True,
                                          gradient_accumulation_steps=4,
                                          logging_steps=100,
                                          eval_steps=2000,
-                                         num_train_epochs=20,
+                                         num_train_epochs=3,
                                          evaluation_strategy="steps",
                                          dataloader_pin_memory=False)
 lang_module = LangModule("Helsinki-NLP/opus-mt-en-cs", head_types=[Head.LANGUAGE_MODEL])
@@ -57,7 +57,7 @@ adapter = Adapter(lang_module, schedule, args=training_arguments)
 adapter.train()
 
 adapter.save_model(tmp_data_dir)
-print("Adaptation finished. Trained model can be reloaded from %s" % tmp_data_dir)
+print("Adaptation finished. Trained model can be reloaded from path: `%s`" % tmp_data_dir)
 
 # notes:
 # 1. num_train_epochs is not really transparent -> it will stop after given iteration regardless stopping_strategy
