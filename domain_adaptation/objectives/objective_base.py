@@ -1,4 +1,5 @@
 import abc
+import logging
 from typing import List, Union, Optional, Iterable, Tuple, Dict, Sequence
 
 import torch
@@ -7,6 +8,9 @@ from tqdm import trange
 from ..evaluators.evaluator_base import EvaluatorBase
 from ..lang_module import LangModule
 from ..utils import AdaptationDataset, Head, TransformerAdaptationDataset
+
+
+logger = logging.getLogger()
 
 
 class Objective(abc.ABC):
@@ -23,7 +27,7 @@ class Objective(abc.ABC):
     dataset_length: Dict[str, int]
     loss_history: Dict[str, List[float]]
     outputs_history: Dict[str, List[Tuple[torch.FloatTensor, torch.LongTensor]]]
-    evaluations_history: Dict[str, Dict[EvaluatorBase, List[float]]]
+    evaluations_history: Dict[str, Dict[Union[str, EvaluatorBase], List[float]]]
     progressbar: Dict[str, trange]
     evaluators: Dict[str, List[EvaluatorBase]]
 
@@ -40,7 +44,7 @@ class Objective(abc.ABC):
 
         self.epoch = 0
         self.dataset_length = {"train": 0, "eval": 0}
-        self.loss_history = {"train": [], "eval": []}  # we treat loss separately, it needs to be evaluated immediately
+        self.loss_history = {"train": [], "eval": []}  # loss is treated differently than other outputs
         self.outputs_history = {"train": [], "eval": []}
         self.evaluators = {"train": [], "eval": []}
         self.evaluations_history = {"train": {}, "eval": {}}
@@ -67,6 +71,9 @@ class Objective(abc.ABC):
                 self.evaluators[split].append(given_evaluator)
                 self.evaluations_history[split][given_evaluator] = []
 
+            # loss is objective-dependent, hence we do not delegate it to a separate Evaluator object
+            self.evaluations_history[split]["loss"] = []
+
         if val_texts_or_path is not None:
             if type(val_texts_or_path) == str:
                 self.val_texts_path = val_texts_or_path
@@ -76,27 +83,44 @@ class Objective(abc.ABC):
                 self.val_texts = val_texts_or_path
                 self.dataset_length["eval"] = len(self.val_texts)
 
-    def per_objective_log(self, split: str, num_last_steps: int) -> Dict[str, float]:
+    def per_objective_log(self, split: str, aggregation_steps: int) -> Dict[str, float]:
         out_logs = {}
-        mean_n_last_loss = sum(self.loss_history[split][-num_last_steps:]) / num_last_steps
-        out_logs["%s_%s_loss" % (split, self)] = mean_n_last_loss
-        for evaluator in self.evaluators[split]:
-            n_last_logits = [logits for logits, labels in self.outputs_history[split][-num_last_steps:]]
-            n_last_labels = [labels for logits, labels in self.outputs_history[split][-num_last_steps:]]
+        # aggregate per-logging-steps, or per-evaluation-steps, keep the results of unprocessed evaluations
+        if len(self.outputs_history[split]) >= aggregation_steps:
+            # aggregate recent losses into the report, clear out losses cache
+            mean_loss = sum(self.loss_history[split]) / len(self.loss_history[split])
+            self.evaluations_history[split]["loss"].append(mean_loss)
 
-            evaluator_value = evaluator(n_last_logits, n_last_labels, self.tokenizer)
-            self.evaluations_history[split][evaluator] = evaluator_value
-            out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
+            out_logs["%s_%s_loss" % (split, self)] = mean_loss
+            for evaluator in self.evaluators[split]:
+                n_last_logits = [logits for logits, labels in self.outputs_history[split]]
+                n_last_labels = [labels for logits, labels in self.outputs_history[split]]
 
-        # LM logits each of shape (batch_size, n_tokens, vocab_size) can consume a lot of memory
-        # we erase the raw outputs after the logging, to save space, but we remember the values of Evaluators
-        self.outputs_history[split] = []
+                # evaluator should already return an aggregated value, so unlike loss, we don't average it
+                evaluator_value = evaluator(n_last_logits, n_last_labels, self.tokenizer)
+                self.evaluations_history[split][evaluator].append(evaluator_value)
+                out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
+
+            # LM logits, each of shape (batch_size, n_tokens, vocab_size) can consume a lot of memory
+            # we erase the raw outputs after the logging, to save space, but we remember the values of Evaluators
+            self.outputs_history[split] = []
         return out_logs
 
-    def has_converged(self) -> bool:
-        passed_patience_evals = len(self.loss_history["eval"]) >= self.args.stopping_patience
-        did_not_improve = max(self.loss_history["eval"][:-self.args.stopping_patience]) >= \
-                          max(self.loss_history["eval"][-self.args.stopping_patience:])
+    def has_converged(self, patience: int) -> bool:
+        convergence_evaluators = [e for e in self.evaluators
+                                  if isinstance(e, EvaluatorBase) and e.determines_convergence]
+        if convergence_evaluators:
+            stopping_evaluator = convergence_evaluators[0]
+        else:
+            stopping_evaluator = "loss"
+
+        passed_patience_evals = len(self.evaluations_history["eval"][stopping_evaluator]) > patience
+        if not passed_patience_evals:
+            return False
+        did_not_improve = max(self.evaluations_history["eval"][stopping_evaluator][:-patience]) >= \
+                          max(self.evaluations_history["eval"][stopping_evaluator][-patience:])
+        logger.warning("Objective %s convergence metric %s did not improve for %s eval steps" %
+                       self, stopping_evaluator, patience)
 
         return passed_patience_evals and did_not_improve
 
@@ -121,16 +145,15 @@ class Objective(abc.ABC):
     def _get_inputs_iterator(self, split: str) -> Iterable:
         pass
 
-    def get_dataset(self, split: str, objective_i: int, device: Union[str, torch.device],
-                    epoch: int = 0) -> AdaptationDataset:
-        self.epoch = epoch
+    def get_dataset(self, split: str, objective_i: int, device: Union[str, torch.device]) -> AdaptationDataset:
+        self.epoch += 1 if split == "train" else 0
 
-        self.progressbar[split] = trange(self.dataset_length[split] // self.batch_size,
+        self.progressbar[split] = trange(self.dataset_length[split] // self.batch_size + 1,
                                          desc=str(self),
                                          unit="batches",
                                          position=objective_i,
                                          leave=True)
-        self.progressbar[split].set_postfix(refresh=False, split=split, epoch=epoch, loss=-1)
+        self.progressbar[split].set_postfix(refresh=False, split=split, epoch=self.epoch, loss=-1)
 
         inputs_iter = self._get_inputs_iterator(split)
 

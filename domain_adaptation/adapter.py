@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Tuple, Union, Optional
 
+from transformers import integrations  # noqa: attempts to import integration hooks before other imports
 import torch
 from transformers import Trainer, BatchEncoding
 
@@ -49,7 +50,7 @@ class Adapter(Trainer):
         Trainer should keep the passed `per_device_*_batch_size` even on multiGPU training, so no data is omitted.
         :return: loss and a placeholder of unused outputs, for compatibility
         """
-        assert len(features) == 1
+        assert len(features) == 1  # TODO: on multi-gpu training, this does not hold
 
         return features[0]
 

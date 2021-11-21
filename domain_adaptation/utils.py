@@ -88,14 +88,17 @@ class AdaptationArguments(TrainingArguments):
     }
 
     def __init__(self,
-                 stopping_strategy: Union[StoppingStrategy, Tuple[StoppingStrategy]],
+                 stopping_strategy: StoppingStrategy,
                  stopping_patience: Optional[int] = 10,
+                 sample_converged_objectives: bool = False,
+                 separate_heads: bool = False,
                  **kwargs):
 
         # novel arguments, w.r.t. original TrainingArguments
-        is_single_strategy = type(stopping_strategy) == StoppingStrategy
-        self.stopping_strategy = (stopping_strategy,) if is_single_strategy else stopping_strategy
+        self.stopping_strategy = stopping_strategy
         self.stopping_patience = stopping_patience
+        self.use_converged_objectives = sample_converged_objectives
+        self.separate_heads = separate_heads  # TODO
 
         # adjustments of the defaults expected by Scheduler
         unexpected_adjusted_args = [arg for arg in kwargs.keys() if arg in self.fixed_adaptation_args.keys()]

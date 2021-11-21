@@ -8,7 +8,7 @@ from utils import paths, test_base_models
 
 def assert_evaluator_logs(lang_module: LangModule, objective: Objective, split: str = "train"):
     # dataset iteration test
-    dataset_sample = next(iter(objective.get_dataset(split, objective_i=0, device="cpu", epoch=0)))
+    dataset_sample = next(iter(objective.get_dataset(split, objective_i=0, device="cpu")))
 
     # providing labels makes HF lang_module to compute its own loss, which is in DA redundantly done by Objective
     outputs = lang_module(objective.compatible_head, **dataset_sample)
@@ -16,7 +16,7 @@ def assert_evaluator_logs(lang_module: LangModule, objective: Objective, split: 
     # loss computation test, possible label smoothing is performed by Adapter
     loss = objective.compute_loss(outputs, dataset_sample["labels"], split)
 
-    log = objective.per_objective_log(split, num_last_steps=1)
+    log = objective.per_objective_log(split, aggregation_steps=1)
 
     # check that retrieved loss has a backward_fn
     loss.backward()

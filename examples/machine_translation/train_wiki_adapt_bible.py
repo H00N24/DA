@@ -7,6 +7,7 @@ We perform the following steps:
 2. Perform a combined adaptation on both parallel data and monolingual, OpenSubtitles domain: Strided schedule.
 """
 from domain_adaptation.adapter import Adapter
+from domain_adaptation.evaluators.generative import BLEU
 from domain_adaptation.lang_module import LangModule
 from domain_adaptation.objectives.denoising import DenoisingObjective
 from domain_adaptation.objectives.seq2seq import DecoderSequence2Sequence
@@ -19,37 +20,47 @@ from examples.opus import OPUSDataset
 tmp_data_dir = "."
 
 train_source = OPUSDataset("wikimedia", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
-train_val_source = OPUSDataset("wikimedia", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=200)
+train_val_source = OPUSDataset("wikimedia", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=300)
 
 adapt_source = OPUSDataset("Bible", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
-adapt_val_source = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=200)
+adapt_val_source = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=300)
 
 
 # 2. Perform a combined adaptation on both parallel data and monolingual, OpenSubtitles domain: Strided schedule.
 training_arguments = AdaptationArguments(output_dir="adaptation_output_dir",
+                                         learning_rate=5e-4,
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          do_train=True,
                                          do_eval=True,
                                          gradient_accumulation_steps=4,
                                          logging_steps=100,
-                                         eval_steps=2000,
-                                         num_train_epochs=3,
+                                         eval_steps=1000,
+                                         num_train_epochs=30,
                                          evaluation_strategy="steps",
                                          dataloader_pin_memory=False)
 lang_module = LangModule("Helsinki-NLP/opus-mt-en-cs", head_types=[Head.LANGUAGE_MODEL])
 lang_module.reinitialize()
+
+train_bleu = BLEU()
+val_bleu = BLEU(decides_convergence=True)
 
 clm_training = DecoderSequence2Sequence(lang_module,
                                         texts_or_path=train_source.source,
                                         labels_or_path=train_source.target,
                                         val_texts_or_path=train_val_source.source,
                                         val_labels_or_path=train_val_source.target,
-                                        source_lang_id="en", target_lang_id="cs", batch_size=16)
+                                        source_lang_id="en",
+                                        target_lang_id="cs",
+                                        batch_size=8,
+                                        train_evaluators=[train_bleu],
+                                        val_evaluators=[val_bleu])
 
 denoising_adaptation = DenoisingObjective(lang_module,
                                           texts_or_path=adapt_source.source,
                                           val_texts_or_path=adapt_val_source.source,
-                                          batch_size=16)
+                                          batch_size=8,
+                                          train_evaluators=[train_bleu],
+                                          val_evaluators=[val_bleu])
 
 schedule = StridedSchedule(objectives=[clm_training, denoising_adaptation], args=training_arguments)
 

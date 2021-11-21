@@ -48,13 +48,17 @@ class LangModule(torch.nn.Module):
                 unmatched_modules = self._partially_match_models(init_trainable_models[head_types[0].name],
                                                                  init_trainable_models[head_str])
                 # this can contain a deep stack of layers, hence in general, it can not be checked automatically
-                print("These layers of the laded %s were not merged: %s" % (head_str, unmatched_modules))
+                print("These layers of the loaded %s were not merged: %s" % (head_str, unmatched_modules))
 
             # register expected output sizes?
             last_layer = list(init_trainable_models[head_str].parameters())[-1]
             self.heads_output_sizes[head_str] = last_layer.shape[-1]
 
         return init_trainable_models
+
+    def _load_new_head(self, model_name_or_path: str, head_type: Head, head_kwargs: Dict[str, Any]) -> torch.nn.Module:
+        pass
+        # TODO: this is needed for objective-specific head: refactor _load_pretrained_with_heads
 
     @staticmethod
     def _partially_match_models(orig_model: torch.nn.Module,
@@ -101,6 +105,7 @@ class LangModule(torch.nn.Module):
 
         if requested_head is None:
             if "label" not in inputs and "labels" not in inputs:
+                # TODO: if we have separate heads for separate objectives, we can not do dynamic resolution
                 raise AttributeError("Please give me either a head you want to infer with, or labels for training.")
             labels_tensor = inputs[label_key]
             requested_head = self._head_by_labels(labels_tensor)

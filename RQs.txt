@@ -4,3 +4,4 @@ Candidate RQs:
 #. Is there an efficient curriculum heuristic (in contrary to learning it) that can consistently improve the performance?
 #. How does the learning rate of the last layer affect the speed of training?
 #. How efficient are the known objectives w.r.t. the required amount of training data?
+#. Should we use separate heads for different objectives?
