@@ -1,6 +1,7 @@
 import abc
+import itertools
 import logging
-from typing import List, Union, Optional, Iterable, Tuple, Dict, Sequence
+from typing import List, Union, Optional, Iterable, Tuple, Dict, Sequence, Any
 
 import torch
 from tqdm import trange
@@ -37,11 +38,15 @@ class Objective(abc.ABC):
                  texts_or_path: Union[str, List[str]],
                  val_texts_or_path: Optional[Union[str, List[str]]] = None,
                  train_evaluators: Sequence[EvaluatorBase] = (),
-                 val_evaluators: Sequence[EvaluatorBase] = ()):
+                 val_evaluators: Sequence[EvaluatorBase] = (),
+                 share_other_objective_head: Optional["Objective"] = None,
+                 objective_module: Optional[torch.nn.Module] = None):
         self.batch_size = batch_size
         self.tokenizer = lang_module.tokenizer
-        self.compatible_head_model = self.pick_compatible_head_model(lang_module)
-
+        self.compatible_head_model = self.register_compatible_head_model(lang_module,
+                                                                         share_other_objective_head,
+                                                                         {},
+                                                                         objective_module)
         self.epoch = 0
         self.dataset_length = {"train": 0, "eval": 0}
         self.loss_history = {"train": [], "eval": []}  # loss is treated differently than other outputs
@@ -160,20 +165,28 @@ class Objective(abc.ABC):
         def _sample_to_device(sample: Dict[str, torch.LongTensor]) -> Dict[str, torch.LongTensor]:
             return {k: v.to(device) if k != "oid" else v for k, v in sample.items()}
 
-        device_inputs_iter = map(_sample_to_device, inputs_iter)
+        def _add_oid(sample: Dict[str, Union[int, torch.LongTensor]]) -> Dict[str, torch.LongTensor]:
+            sample["oid"] = id(self)
+            return sample
 
-        return TransformerAdaptationDataset(device_inputs_iter, objective_id=id(self))
+        device_inputs_iter = map(_sample_to_device, inputs_iter)
+        device_inputs_iter = map(_add_oid, device_inputs_iter)
+
+        return TransformerAdaptationDataset(device_inputs_iter, self.dataset_length[split])
 
     @abc.abstractmethod
     def _per_split_iterators(self, split: str) -> Union[Iterable[str], Tuple[Iterable[str], Iterable[str]]]:
         pass
 
-    def pick_compatible_head_model(self, lang_module: LangModule) -> torch.nn.Module:
-        try:
-            return [module for head, module in lang_module.trainable_models.items()
-                    if head == self.compatible_head.name][0]
-        except IndexError:
-            raise ValueError("No head of the loaded LangModule is compatible with %s objective!" % self)
+    def register_compatible_head_model(self, lang_module: LangModule,
+                                       other_objective: Optional["Objective"],
+                                       objective_args_for_head_config: Optional[Dict[str, Any]],
+                                       preloaded_module: Optional[torch.nn.Module]) -> torch.nn.Module:
+        if other_objective is not None:
+            return other_objective.compatible_head_model
+        else:
+            head_config = objective_args_for_head_config if objective_args_for_head_config is not None else {}
+            return lang_module.load_new_head(str(id(self)), self.compatible_head, head_config, preloaded_module)
 
     def __str__(self) -> str:
         return str(self.__class__.__name__)
@@ -222,12 +235,6 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
                  val_labels_or_path: Optional[Union[str, List[str]]] = None,
                  train_evaluators: Sequence[EvaluatorBase] = (),
                  val_evaluators: Sequence[EvaluatorBase] = ()):
-        super().__init__(lang_module=lang_module,
-                         batch_size=batch_size,
-                         texts_or_path=texts_or_path,
-                         val_texts_or_path=val_texts_or_path,
-                         train_evaluators=train_evaluators,
-                         val_evaluators=val_evaluators)
 
         if type(labels_or_path) == str:
             self.labels_path = labels_or_path
@@ -239,6 +246,32 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
                 self.val_labels_path = val_labels_or_path
             else:
                 self.val_labels = val_labels_or_path
+
+        # init will call register_compatible_head_model, which resolves num_labels for new head config from self.labels
+        super().__init__(lang_module=lang_module,
+                         batch_size=batch_size,
+                         texts_or_path=texts_or_path,
+                         val_texts_or_path=val_texts_or_path,
+                         train_evaluators=train_evaluators,
+                         val_evaluators=val_evaluators)
+
+    def register_compatible_head_model(self, lang_module: LangModule,
+                                       other_objective: Optional["Objective"],
+                                       objective_args_for_head_config: Optional[Dict[str, Any]],
+                                       preloaded_module: Optional[torch.nn.Module]) -> torch.nn.Module:
+        if self.labels is not None:
+            all_labels = self.labels
+        else:
+            with open(self.labels_path) as f:
+                all_labels = [l.strip() for l in f.readlines()]
+        if self.compatible_head == Head.TOKEN_CLASSIFICATION:
+            all_labels = itertools.chain(*(token_labels_str.split() for token_labels_str in all_labels))
+
+        objective_args_for_head_config = {**objective_args_for_head_config,
+                                          **{"num_labels": len(set(all_labels))}}
+        head_module = super().register_compatible_head_model(lang_module, other_objective,
+                                                             objective_args_for_head_config, preloaded_module)
+        return head_module
 
     def _per_split_iterators(self, split: str) -> Tuple[Iterable[str], Iterable[str]]:
         sources_iter, _ = super(SupervisedObjective, self)._per_split_iterators(split)
@@ -252,7 +285,6 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
             assert self.val_labels is not None, "Objective %s did not get any validation labels :( " \
                                                 "Hint: pass `AdaptationArgs(do_eval=False)` to avoid evaluation, " \
                                                 "or set Objective(val_labels) param." % self
-
             if self.texts is not None:
                 targets_iter = iter(self.val_labels)
             else:

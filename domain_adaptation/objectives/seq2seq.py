@@ -1,5 +1,5 @@
 import abc
-from typing import List, Union, Optional, Iterable, Dict, Iterator, Callable, Sequence
+from typing import List, Union, Optional, Iterable, Dict, Iterator, Callable, Sequence, Any
 
 import torch
 from transformers import DataCollatorForSeq2Seq
@@ -52,16 +52,20 @@ class Sequence2SequenceMixin(Objective, abc.ABC):
 
 class DecoderSequence2SequenceMixin(Sequence2SequenceMixin, abc.ABC):
 
-    def pick_compatible_head_model(self, lang_module: LangModule) -> torch.nn.Module:
-        try:
-            return [module for head, module in lang_module.trainable_models.items()
-                    if head == self.compatible_head.name
-                    and hasattr(module, "prepare_decoder_input_ids_from_labels")][0]
-        except IndexError:
-            raise ValueError("No head of the loaded LangModule is compatible with %s objective!"
-                             "\nNote that the module compatible with DecoderSequence2SequenceMixin"
-                             "\nmust have `prepare_decoder_input_ids_from_labels` method, see e.g."
-                             "\ntransformers.BartModel." % self)
+    def register_compatible_head_model(self, lang_module: LangModule,
+                                       other_objective: Optional["Objective"],
+                                       objective_args_for_head_config: Optional[Dict[str, Any]],
+                                       preloaded_module: Optional[torch.nn.Module]) -> torch.nn.Module:
+
+        head_module = super().register_compatible_head_model(lang_module, other_objective,
+                                                             objective_args_for_head_config, preloaded_module)
+        assert hasattr(head_module, "prepare_decoder_input_ids_from_labels"), \
+            "No head of the loaded LangModule is compatible with %s objective! " \
+            "\nNote that the module compatible with " \
+            "DecoderSequence2SequenceMixin \nmust have `prepare_decoder_input_ids_from_labels` method, " \
+            "see e.g. \ntransformers.BartModel." % self
+
+        return head_module
 
 
 class DecoderSequence2Sequence(DecoderSequence2SequenceMixin, SupervisedObjective):

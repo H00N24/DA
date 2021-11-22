@@ -12,7 +12,7 @@ from domain_adaptation.lang_module import LangModule
 from domain_adaptation.objectives.denoising import DenoisingObjective
 from domain_adaptation.objectives.seq2seq import DecoderSequence2Sequence
 from domain_adaptation.schedules import StridedSchedule, SequentialSchedule
-from domain_adaptation.utils import AdaptationArguments, StoppingStrategy, Head
+from domain_adaptation.utils import AdaptationArguments, StoppingStrategy
 
 # 1. Load datasets
 from examples.opus import OPUSDataset
@@ -28,17 +28,17 @@ adapt_val_source = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs
 
 # 2. Perform a combined adaptation on both parallel data and monolingual, OpenSubtitles domain: Strided schedule.
 training_arguments = AdaptationArguments(output_dir="adaptation_output_dir",
-                                         learning_rate=5e-4,
+                                         learning_rate=2e-4,
                                          stopping_strategy=StoppingStrategy.ALL_OBJECTIVES_CONVERGED,
                                          do_train=True,
                                          do_eval=True,
                                          gradient_accumulation_steps=4,
-                                         logging_steps=100,
+                                         logging_steps=105,
                                          eval_steps=1000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps",
                                          dataloader_pin_memory=False)
-lang_module = LangModule("Helsinki-NLP/opus-mt-en-cs", head_types=[Head.LANGUAGE_MODEL])
+lang_module = LangModule("Helsinki-NLP/opus-mt-en-cs")
 lang_module.reinitialize()
 
 train_bleu = BLEU()

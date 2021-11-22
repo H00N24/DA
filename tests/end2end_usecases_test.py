@@ -1,5 +1,3 @@
-from transformers import AutoModelForSeq2SeqLM
-
 from domain_adaptation.adapter import Adapter
 from domain_adaptation.evaluators.generative import BLEU
 from domain_adaptation.lang_module import LangModule
@@ -8,7 +6,6 @@ from domain_adaptation.objectives.classification import TokenClassification
 from domain_adaptation.objectives.denoising import DenoisingObjective
 from domain_adaptation.objectives.seq2seq import DecoderSequence2Sequence
 from domain_adaptation.schedules import StridedSchedule
-from domain_adaptation.utils import Head
 from utils import training_arguments, paths, test_base_models
 
 unsup_target_domain_texts = paths["texts"]["target_domain"]["unsup"]
@@ -18,9 +15,7 @@ sup_target_domain_labels = paths["labels"]["target_domain"]["ner"]
 
 def test_adaptation_ner():
     # 1. pick the models - randomly pre-initialize the appropriate heads
-    lang_module = LangModule(test_base_models["token_classification"],
-                             head_types=[Head.LANGUAGE_MODEL, Head.TOKEN_CLASSIFICATION],
-                             head_kwargs=[{}, {"num_labels": 3}])
+    lang_module = LangModule(test_base_models["token_classification"])
 
     # 2. pick objectives
     # for datasets, pass in pre-loaded List[str] for in-memory iteration, or str of file path for online retrieval
@@ -45,7 +40,7 @@ def test_adaptation_ner():
 
 def test_adaptation_translation():
     # 1. pick the models - randomly pre-initialize the appropriate heads
-    lang_module = LangModule(test_base_models["translation"], head_types=[Head.LANGUAGE_MODEL])
+    lang_module = LangModule(test_base_models["translation"])
 
     # (optional) pick train and validation evaluators for the objectives
     seq2seq_evaluators = [BLEU(decides_convergence=True)]

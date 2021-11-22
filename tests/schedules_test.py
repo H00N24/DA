@@ -1,12 +1,10 @@
-import itertools
-
 from domain_adaptation.lang_module import LangModule
 from domain_adaptation.objectives.MLM import MaskedLanguageModeling
 from domain_adaptation.objectives.classification import TokenClassification
 from domain_adaptation.objectives.denoising import DenoisingObjective
 from domain_adaptation.objectives.seq2seq import DecoderSequence2Sequence
 from domain_adaptation.schedules import SequentialSchedule, TrainingSchedule, StridedSchedule
-from domain_adaptation.utils import Head, AdaptationArguments, StoppingStrategy
+from domain_adaptation.utils import AdaptationArguments, StoppingStrategy
 from utils import test_base_models
 
 unsup_target_domain_texts = "mock_data/domain_unsup.txt"
@@ -32,7 +30,7 @@ def assert_schedule(lang_module: LangModule, schedule: TrainingSchedule, split: 
 
         logit_outputs = lang_module(**batch)
 
-        loss_combined = schedule.compute_loss(logit_outputs, batch.labels)
+        loss_combined = schedule.compute_loss(logit_outputs, batch["labels"])
         loss_combined.backward()
 
         assert True
@@ -41,9 +39,7 @@ def assert_schedule(lang_module: LangModule, schedule: TrainingSchedule, split: 
 
 
 def ner_da_schedule(schedule_type):
-    lang_module = LangModule(test_base_models["token_classification"],
-                             head_types=[Head.LANGUAGE_MODEL, Head.TOKEN_CLASSIFICATION],
-                             head_kwargs=[{}, {"num_labels": 3}])
+    lang_module = LangModule(test_base_models["token_classification"])
 
     lm_adaptation = MaskedLanguageModeling(lang_module, texts_or_path=unsup_target_domain_texts, batch_size=1)
     token_classification = TokenClassification(lang_module, texts_or_path=sup_target_domain_texts,
@@ -61,15 +57,10 @@ def test_ner_da_schedule_strided():
 
 
 def test_mt_da_schedule():
-    lang_module = LangModule(test_base_models["translation"], head_types=[Head.LANGUAGE_MODEL])
+    lang_module = LangModule(test_base_models["translation"])
     denoising_adaptation = DenoisingObjective(lang_module, texts_or_path=unsup_target_domain_texts, batch_size=1)
     clm_finetuning = DecoderSequence2Sequence(lang_module, texts_or_path=sup_translation_texts_src,
                                               labels_or_path=sup_translation_texts_tgt, source_lang_id="en",
                                               target_lang_id="cs", batch_size=1)
 
     assert_schedule(lang_module, SequentialSchedule(objectives=[denoising_adaptation, clm_finetuning], args=args))
-
-
-# test_ner_da_schedule_sequential()
-# test_ner_da_schedule_strided()
-# test_mt_da_schedule()

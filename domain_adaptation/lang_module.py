@@ -1,9 +1,14 @@
+import logging
+
 import torch
 from transformers import PreTrainedTokenizer, AutoTokenizer, AutoModelForSequenceClassification, \
     AutoModelForTokenClassification, AutoModelWithLMHead
 from typing import List, Dict, Union, Any, Optional
 
 from .utils import Head
+
+
+logger = logging.getLogger()
 
 
 class LangModule(torch.nn.Module):
@@ -16,49 +21,37 @@ class LangModule(torch.nn.Module):
     trainable_models: torch.nn.ModuleDict
     heads_output_sizes: Dict[str, int] = {}
 
-    def __init__(self, model_name_or_path: str, head_types: List[Head],
-                 head_kwargs: Optional[List[Dict[str, Any]]] = None) -> None:
+    def __init__(self, model_name_or_path: str) -> None:
         super().__init__()
+        self.model_name_or_path = model_name_or_path
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
 
-        head_kwargs = head_kwargs if head_kwargs is not None else [{}] * len(head_types)
-        modules_dict = self._load_pretrained_with_heads(model_name_or_path, head_types, head_kwargs)
-        self.trainable_models = torch.nn.ModuleDict(modules_dict)
+        # head_kwargs = head_kwargs if head_kwargs is not None else [{}] * len(head_types)
+        # self._load_pretrained_with_heads(model_name_or_path, head_types, head_kwargs)
+        self.trainable_models = torch.nn.ModuleDict()
 
-    def _load_pretrained_with_heads(self, model_name_or_path, head_types: List[Head],
-                                    head_kwargs: List[Dict[str, Any]]) -> Dict[str, torch.nn.Module]:
-        assert len(head_types) == len(head_kwargs), "A number of head arguments is different than a number of heads."
-        init_trainable_models = {}
-
-        for head_type, head_kwarg in zip(head_types, head_kwargs):
-            head_str = head_type.name
+    def load_new_head(self, objective_id: str, head_type: Head,
+                      head_kwargs: Dict[str, Any], new_head: Optional[torch.nn.Module] = None) -> torch.nn.Module:
+        # manually-initialized head chosen for this objective will also be merged with other objectives and registered
+        if new_head is None:
             if head_type == Head.SEQ_CLASSIFICATION:
-                init_trainable_models[head_str] = AutoModelForSequenceClassification.from_pretrained(model_name_or_path,
-                                                                                                     **head_kwarg)
+                new_head = AutoModelForSequenceClassification.from_pretrained(self.model_name_or_path, **head_kwargs)
             elif head_type == Head.TOKEN_CLASSIFICATION:
-                init_trainable_models[head_str] = AutoModelForTokenClassification.from_pretrained(model_name_or_path,
-                                                                                                  **head_kwarg)
+                new_head = AutoModelForTokenClassification.from_pretrained(self.model_name_or_path, **head_kwargs)
             elif head_type == Head.LANGUAGE_MODEL:
-                init_trainable_models[head_str] = AutoModelWithLMHead.from_pretrained(model_name_or_path, **head_kwarg)
+                new_head = AutoModelWithLMHead.from_pretrained(self.model_name_or_path, **head_kwargs)
             else:
-                init_trainable_models[head_str] = torch.load(model_name_or_path, **head_kwarg)
+                new_head = torch.load(self.model_name_or_path, **head_kwargs)
 
-            # this applies to the <2nd-added models: they adopt the shared parameters of the first lang_module
-            if len(init_trainable_models) > 1:
-                unmatched_modules = self._partially_match_models(init_trainable_models[head_types[0].name],
-                                                                 init_trainable_models[head_str])
-                # this can contain a deep stack of layers, hence in general, it can not be checked automatically
-                print("These layers of the loaded %s were not merged: %s" % (head_str, unmatched_modules))
+        # this applies to the 2nd+ -added models: they adopt the shared parameters of the first lang_module
+        if len(self.trainable_models) > 1:
+            unmatched_modules = self._partially_match_models(list(self.trainable_models.values())[0],
+                                                             self.trainable_models[head_type.name])
+            # this can contain a deep stack of layers, hence in general, it can not be checked automatically
+            logger.warning("These layers of the loaded %s were not merged: %s" % (head_type.name, unmatched_modules))
+        self.trainable_models[objective_id] = new_head
 
-            # register expected output sizes?
-            last_layer = list(init_trainable_models[head_str].parameters())[-1]
-            self.heads_output_sizes[head_str] = last_layer.shape[-1]
-
-        return init_trainable_models
-
-    def _load_new_head(self, model_name_or_path: str, head_type: Head, head_kwargs: Dict[str, Any]) -> torch.nn.Module:
-        pass
-        # TODO: this is needed for objective-specific head: refactor _load_pretrained_with_heads
+        return new_head
 
     @staticmethod
     def _partially_match_models(orig_model: torch.nn.Module,
@@ -86,31 +79,8 @@ class LangModule(torch.nn.Module):
 
         return unmatched_modules
 
-    def _head_by_labels(self, labels: torch.LongTensor) -> Head:
-        if len(labels.shape) == 1:
-            # sequence classification task
-            return Head.SEQ_CLASSIFICATION
-        elif Head.TOKEN_CLASSIFICATION.name in self.trainable_models and \
-                labels.max() <= self.heads_output_sizes[Head.TOKEN_CLASSIFICATION.name]:
-            # token-level task
-            return Head.TOKEN_CLASSIFICATION
-        elif Head.LANGUAGE_MODEL.name in self.trainable_models:
-            return Head.LANGUAGE_MODEL
-        else:
-            raise ValueError("I did now find a compatible head for the given labels. "
-                             "Automatic head inference can be omitted by selecting `requested_head` to lang_module()")
-
-    def forward(self, requested_head: Head = None, **inputs) -> torch.LongTensor:
-        label_key = "label" if "label" in inputs else "labels"
-
-        if requested_head is None:
-            if "label" not in inputs and "labels" not in inputs:
-                # TODO: if we have separate heads for separate objectives, we can not do dynamic resolution
-                raise AttributeError("Please give me either a head you want to infer with, or labels for training.")
-            labels_tensor = inputs[label_key]
-            requested_head = self._head_by_labels(labels_tensor)
-
-        selected_head_model = self.trainable_models[requested_head.name]
+    def forward(self, **inputs) -> torch.LongTensor:
+        selected_head_model = self.trainable_models[str(inputs["oid"])]
 
         # including labels cause the loss to be computed twice - by objective + by HF models forward()
         # but labels are also used to infer decoder_input_ids of some models, so we need to pass it

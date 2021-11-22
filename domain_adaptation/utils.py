@@ -55,22 +55,20 @@ class AdaptationDataset(IterableDataset, abc.ABC):
 
 class TransformerAdaptationDataset(AdaptationDataset):
 
-    def __init__(self, batch_encoding_params: Iterable[Dict[str, torch.LongTensor]], length: Optional[int] = None,
-                 objective_id: Optional[int] = -1):
+    def __init__(self, batch_encoding_params: Iterable[Dict[str, torch.LongTensor]], length: Optional[int] = None):
         """
         :param batch_encoding_params: Arguments to be passed to BatchEncoding (input_ids, attention_mask, labels)
         """
         super().__init__(length)
-        self.objective_id = objective_id
         self.batch_encoding_params = batch_encoding_params
 
-    def __iter__(self) -> Iterator[BatchEncoding]:
+    def __iter__(self) -> Iterator[Dict[str, torch.LongTensor]]:
         """
         Iterates over collated items of the dataset. The items are already collated by the specific Objective,
         so that Schedules can perform item-level sampling.
         :return: iterator over the samples of the dataset.
         """
-        return iter(BatchEncoding({**encoding, **{"oid": self.objective_id}}) for encoding in self.batch_encoding_params)
+        return iter(self.batch_encoding_params)
 
 
 class AdaptationArguments(TrainingArguments):

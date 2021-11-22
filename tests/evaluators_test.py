@@ -2,7 +2,6 @@ from domain_adaptation.evaluators.generative import BLEU
 from domain_adaptation.lang_module import LangModule
 from domain_adaptation.objectives.objective_base import Objective
 from domain_adaptation.objectives.seq2seq import DecoderSequence2Sequence
-from domain_adaptation.utils import Head
 from utils import paths, test_base_models
 
 
@@ -11,7 +10,7 @@ def assert_evaluator_logs(lang_module: LangModule, objective: Objective, split: 
     dataset_sample = next(iter(objective.get_dataset(split, objective_i=0, device="cpu")))
 
     # providing labels makes HF lang_module to compute its own loss, which is in DA redundantly done by Objective
-    outputs = lang_module(objective.compatible_head, **dataset_sample)
+    outputs = lang_module(**dataset_sample)
 
     # loss computation test, possible label smoothing is performed by Adapter
     loss = objective.compute_loss(outputs, dataset_sample["labels"], split)
@@ -25,7 +24,7 @@ def assert_evaluator_logs(lang_module: LangModule, objective: Objective, split: 
 
 
 def test_train_bleu_with_seq2seq():
-    lang_module = LangModule(test_base_models["translation"], head_types=[Head.LANGUAGE_MODEL])
+    lang_module = LangModule(test_base_models["translation"])
 
     train_bleu = BLEU()
     val_bleu = BLEU(decides_convergence=True)
