@@ -33,7 +33,7 @@ if __name__ == "__main__":
                                        split="test", data_dir=args.data_dir, firstn=args.firstn)
 
     config = AutoConfig.from_pretrained(args.config_file_path)
-    lm_model = AutoModelWithLMHead.from_pretrained(args.model_name_or_path, config=config)
+    lm_model = AutoModelWithLMHead.from_pretrained(args.model_name_or_path, config=config).to(args.device)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, config=config)
 
     assert hasattr(lm_model, "generate"), "For translation, we need a model that implements its own generate()."
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     translations = []
 
     for src_text in tqdm(adapted_test_dataset.source):
-        inputs = tokenizer(src_text, truncation=True, return_tensors="pt")
+        inputs = tokenizer(src_text, truncation=True, return_tensors="pt").to(args.device)
         outputs = lm_model.generate(**inputs)
         translations.extend(tokenizer.batch_decode(outputs))
         if len(translations) % 10 == 0:
