@@ -30,8 +30,9 @@ class LangModule(torch.nn.Module):
         # self._load_pretrained_with_heads(model_name_or_path, head_types, head_kwargs)
         self.trainable_models = torch.nn.ModuleDict()
 
-    def load_new_head(self, objective_id: str, head_type: Head,
-                      head_kwargs: Dict[str, Any], new_head: Optional[torch.nn.Module] = None) -> torch.nn.Module:
+    def load_new_head(self, head_type: Head, objective_id: Optional[str] = "",
+                      head_kwargs: Optional[Dict[str, Any]] = None,
+                      new_head: Optional[torch.nn.Module] = None) -> torch.nn.Module:
         # manually-initialized head chosen for this objective will also be merged with other objectives and registered
         if new_head is None:
             if head_type == Head.SEQ_CLASSIFICATION:
