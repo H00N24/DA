@@ -1,5 +1,5 @@
 import itertools
-from typing import List
+from typing import List, Sequence
 
 import torch
 from sacrebleu import corpus_bleu
@@ -24,4 +24,8 @@ class BLEU(EvaluatorBase):
         argmax_tokens = itertools.chain(*(torch.argmax(batch_logits, -1) for batch_logits in logit_outputs))
         actual_str = tokenizer.batch_decode(argmax_tokens)
 
+        return BLEU.evaluate_str(list(expected_str), actual_str)
+
+    @staticmethod
+    def evaluate_str(expected_str: Sequence[str], actual_str: Sequence[str]) -> float:
         return corpus_bleu(actual_str, [list(expected_str)]).score

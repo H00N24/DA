@@ -2,6 +2,8 @@ from domain_adaptation.adapter import Adapter
 from domain_adaptation.lang_module import LangModule
 from domain_adaptation.objectives.MLM import MaskedLanguageModeling
 from domain_adaptation.objectives.classification import TokenClassification
+from domain_adaptation.objectives.denoising import DenoisingObjective
+from domain_adaptation.objectives.seq2seq import DecoderSequence2Sequence
 from domain_adaptation.schedules import SequentialSchedule
 from domain_adaptation.utils import AdaptationArguments, StoppingStrategy
 from utils import paths, test_base_models
@@ -39,3 +41,25 @@ def test_ner_adaptation():
     adapter = Adapter(lang_module, schedule, args=training_arguments)
 
     run_adaptation(adapter)
+
+
+def test_mt_adaptation():
+    lang_module = LangModule(test_base_models["translation"])
+    objectives = [
+            DenoisingObjective(lang_module,
+                               texts_or_path=paths["texts"]["target_domain"]["unsup"],
+                               batch_size=1),
+            DecoderSequence2Sequence(lang_module,
+                                     texts_or_path=paths["texts"]["target_domain"]["translation"],
+                                     labels_or_path=paths["labels"]["target_domain"]["translation"],
+                                     batch_size=1,
+                                     source_lang_id="en",
+                                     target_lang_id="cs")
+    ]
+
+    schedule = SequentialSchedule(objectives, training_arguments)
+
+    adapter = Adapter(lang_module, schedule, args=training_arguments)
+
+    run_adaptation(adapter)
+

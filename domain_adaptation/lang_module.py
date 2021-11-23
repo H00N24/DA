@@ -30,19 +30,30 @@ class LangModule(torch.nn.Module):
         # self._load_pretrained_with_heads(model_name_or_path, head_types, head_kwargs)
         self.trainable_models = torch.nn.ModuleDict()
 
-    def load_new_head(self, head_type: Head, objective_id: Optional[str] = "",
-                      head_kwargs: Optional[Dict[str, Any]] = None,
-                      new_head: Optional[torch.nn.Module] = None) -> torch.nn.Module:
+    @staticmethod
+    def load_head(model_name_or_path: str,
+                  head_type: Head,
+                  head_kwargs: Optional[Dict[str, Any]] = None) -> torch.nn.Module:
+
+        if head_type == Head.SEQ_CLASSIFICATION:
+            new_head = AutoModelForSequenceClassification.from_pretrained(model_name_or_path, **head_kwargs)
+        elif head_type == Head.TOKEN_CLASSIFICATION:
+            new_head = AutoModelForTokenClassification.from_pretrained(model_name_or_path, **head_kwargs)
+        elif head_type == Head.LANGUAGE_MODEL:
+            new_head = AutoModelWithLMHead.from_pretrained(model_name_or_path, **head_kwargs)
+        else:
+            new_head = torch.load(model_name_or_path, **head_kwargs)
+
+        return new_head
+
+    def load_training_head(self, head_type: Head, objective_id: Optional[str] = None,
+                           head_kwargs: Optional[Dict[str, Any]] = None,
+                           new_head: Optional[torch.nn.Module] = None) -> torch.nn.Module:
         # manually-initialized head chosen for this objective will also be merged with other objectives and registered
+        if head_kwargs is None:
+            head_kwargs = {}
         if new_head is None:
-            if head_type == Head.SEQ_CLASSIFICATION:
-                new_head = AutoModelForSequenceClassification.from_pretrained(self.model_name_or_path, **head_kwargs)
-            elif head_type == Head.TOKEN_CLASSIFICATION:
-                new_head = AutoModelForTokenClassification.from_pretrained(self.model_name_or_path, **head_kwargs)
-            elif head_type == Head.LANGUAGE_MODEL:
-                new_head = AutoModelWithLMHead.from_pretrained(self.model_name_or_path, **head_kwargs)
-            else:
-                new_head = torch.load(self.model_name_or_path, **head_kwargs)
+            new_head = self.load_head(self.model_name_or_path, head_type, head_kwargs)
 
         # this applies to the 2nd+ -added models: they adopt the shared parameters of the first lang_module
         if len(self.trainable_models) > 1:

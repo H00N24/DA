@@ -54,8 +54,8 @@ class DecoderSequence2SequenceMixin(Sequence2SequenceMixin, abc.ABC):
 
     def register_compatible_head_model(self, lang_module: LangModule,
                                        other_objective: Optional["Objective"],
-                                       objective_args_for_head_config: Optional[Dict[str, Any]],
-                                       preloaded_module: Optional[torch.nn.Module]) -> torch.nn.Module:
+                                       objective_args_for_head_config: Optional[Dict[str, Any]] = None,
+                                       preloaded_module: Optional[torch.nn.Module] = None) -> torch.nn.Module:
 
         head_module = super().register_compatible_head_model(lang_module, other_objective,
                                                              objective_args_for_head_config, preloaded_module)

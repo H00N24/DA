@@ -187,7 +187,7 @@ class Objective(abc.ABC):
             return other_objective.compatible_head_model
         else:
             head_config = objective_args_for_head_config if objective_args_for_head_config is not None else {}
-            return lang_module.load_new_head(self.compatible_head, str(id(self)), head_config, preloaded_module)
+            return lang_module.load_training_head(self.compatible_head, str(id(self)), head_config, preloaded_module)
 
     def __str__(self) -> str:
         return str(self.__class__.__name__)

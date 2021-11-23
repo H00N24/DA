@@ -8,7 +8,7 @@ from typing import Dict, Iterable, Iterator, Optional, List, Set, Tuple, Union
 import torch
 from torch.utils.data import IterableDataset
 import tqdm
-from transformers import BatchEncoding, TrainingArguments
+from transformers import BatchEncoding, TrainingArguments, CONFIG_NAME
 
 
 class Head(Enum):

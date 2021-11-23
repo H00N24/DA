@@ -1,9 +1,11 @@
 import logging
+import os
 from typing import List, Dict, Tuple, Union, Optional
 
-from transformers import integrations  # noqa: attempts to import integration hooks before other imports
+from transformers import PreTrainedModel, CONFIG_NAME
 import torch
 from transformers import Trainer, BatchEncoding
+from transformers.modeling_utils import unwrap_model
 
 from .lang_module import LangModule
 from .schedules import TrainingSchedule
@@ -85,4 +87,28 @@ class Adapter(Trainer):
         return out
 
     def save_model(self, output_dir: Optional[str] = None) -> None:
+        # HF native reload compatibility
+        # TODO: low priority - we should persist some meta info with the objectives' modules,
+        #  so if the same objective is used multiply, we can distinguish their persistence directories
+        # for now we just increment suffix over the same objective types
+
+        # we persist all registered parameters and a shared tokenizer either way
+        self.model.tokenizer.save_pretrained(output_dir)
         self._save(output_dir)
+
+        objectives_counter = {type(obj): 0 for obj in self.schedule.objectives.values()}
+
+        for objective_id, module in self.model.trainable_models.items():
+            if isinstance(module, PreTrainedModel) or isinstance(unwrap_model(module), PreTrainedModel):
+                # slightly smarter config persistence
+                # for each objective we only persist the config, since the stat_dict is shared
+                objective = self.schedule.objectives[int(objective_id)]
+                output_config_file = os.path.join(output_dir, CONFIG_NAME.split(".json")[0] + "_" + str(objective))
+                # if the objective of this type was already persisted, we'll index the configs of the next ones
+                if objectives_counter[type(objective)] != 0:
+                    output_config_file += ("_" + objectives_counter[type(objective)])
+                    objectives_counter[type(objective)] += 1
+
+                output_config_file += ".json"
+                module.config.to_json_file(output_config_file, use_diff=True)
+                logger.info(f"Configuration saved in {output_config_file}")
