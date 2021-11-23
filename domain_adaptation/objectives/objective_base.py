@@ -91,6 +91,7 @@ class Objective(abc.ABC):
     def per_objective_log(self, split: str, aggregation_steps: int) -> Dict[str, float]:
         out_logs = {}
         # aggregate per-logging-steps, or per-evaluation-steps, keep the results of unprocessed evaluations
+        # TODO: find out why len(outputs_history["eval"] // per_device_eval_batch_size != aggregation_steps
         if len(self.outputs_history[split]) >= aggregation_steps:
             # aggregate recent losses into the report, clear out losses cache
             mean_loss = sum(self.loss_history[split]) / len(self.loss_history[split])
@@ -125,7 +126,7 @@ class Objective(abc.ABC):
         did_not_improve = max(self.evaluations_history["eval"][stopping_evaluator][:-patience]) >= \
                           max(self.evaluations_history["eval"][stopping_evaluator][-patience:])
         logger.warning("Objective %s convergence metric %s did not improve for %s eval steps" %
-                       self, stopping_evaluator, patience)
+                       (self, stopping_evaluator, patience))
 
         return passed_patience_evals and did_not_improve
 
@@ -180,13 +181,13 @@ class Objective(abc.ABC):
 
     def register_compatible_head_model(self, lang_module: LangModule,
                                        other_objective: Optional["Objective"],
-                                       objective_args_for_head_config: Optional[Dict[str, Any]],
-                                       preloaded_module: Optional[torch.nn.Module]) -> torch.nn.Module:
+                                       objective_args_for_head_config: Optional[Dict[str, Any]] = None,
+                                       preloaded_module: Optional[torch.nn.Module] = None) -> torch.nn.Module:
         if other_objective is not None:
             return other_objective.compatible_head_model
         else:
             head_config = objective_args_for_head_config if objective_args_for_head_config is not None else {}
-            return lang_module.load_new_head(str(id(self)), self.compatible_head, head_config, preloaded_module)
+            return lang_module.load_new_head(self.compatible_head, str(id(self)), head_config, preloaded_module)
 
     def __str__(self) -> str:
         return str(self.__class__.__name__)

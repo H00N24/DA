@@ -36,7 +36,8 @@ class TrainingSchedule(abc.ABC):
         out_logs = {}
         for objective in self.objectives.values():
             n_last_steps = self.args.logging_steps if split == "train" \
-                               else (objective.dataset_length["eval"] // self.args.per_device_eval_batch_size) - 1
+                               else 1 \
+                               # else (objective.dataset_length["eval"] // self.args.per_device_eval_batch_size)
             out_logs = {**out_logs, **objective.per_objective_log(split, aggregation_steps=n_last_steps)}
 
         return out_logs
