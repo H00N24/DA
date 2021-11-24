@@ -35,10 +35,7 @@ class TrainingSchedule(abc.ABC):
     def objectives_log(self, split: str) -> Dict[str, float]:
         out_logs = {}
         for objective in self.objectives.values():
-            n_last_steps = self.args.logging_steps if split == "train" \
-                               else 1 \
-                               # else (objective.dataset_length["eval"] // self.args.per_device_eval_batch_size)
-            out_logs = {**out_logs, **objective.per_objective_log(split, aggregation_steps=n_last_steps)}
+            out_logs = {**out_logs, **objective.per_objective_log(split)}
 
         return out_logs
 
@@ -165,15 +162,20 @@ class TrainingSchedule(abc.ABC):
     def _combine_datasets(self, split: str) -> Iterable[Dict[str, Any]]:
         obj_data_samplers = {obj: self._sample_objective_dataset(obj, obj_i, split)
                              for obj_i, obj in enumerate(self.objectives.values())}
-        while not self.should_stop:
-            for objective in self._sample_objectives(split):
+
+        passed_steps = 0
+        if split == "train":
+            while not self.should_stop:
+                for objective in self._sample_objectives(split):
+                    yield next(obj_data_samplers[objective])
+                    passed_steps += 1
+                    # stop on next requested batch, if we're in the should_stop state from on_log event
+                    if self.should_stop:
+                        return
+        else:
+            # we perform a single, sequential iteration over evaluation data sets evaluation either way
+            for objective in SequentialSchedule.single_iteration_eval_sampling(self.objectives.values()):
                 yield next(obj_data_samplers[objective])
-                # stop on next requested batch, if we're in the should_stop state from on_log event
-                if self.should_stop:
-                    return
-            # only the training iteration can be infinite
-            if not split == "train":
-                break
 
     def iterable_dataset(self, split: str) -> TransformerAdaptationDataset:
         # upper-bound of the number of training steps is used for learning rate scheduling
@@ -189,19 +191,19 @@ class SequentialSchedule(TrainingSchedule):
     label = "sequential"
 
     def _sample_objectives(self, split: str) -> Iterable[Objective]:
-        if split == "train":
-            # infinite loop
-            while True:
-                for objective in self.objectives.values():
-                    for _ in range(objective.dataset_length[split]):
-                        if objective in self.converged_objectives and not self.args.use_converged_objectives:
-                            continue
-                        yield objective
-        else:
-            # single loop
+        # infinite loop - does not determine a termination
+        while True:
             for objective in self.objectives.values():
                 for _ in range(objective.dataset_length[split]):
+                    if objective in self.converged_objectives and not self.args.use_converged_objectives:
+                        continue
                     yield objective
+
+    @staticmethod
+    def single_iteration_eval_sampling(objectives: Iterable[Objective]) -> Iterable[Objective]:
+        for objective in objectives:
+            for _ in range(objective.dataset_length["eval"]):
+                yield objective
 
 
 class StridedSchedule(TrainingSchedule):
@@ -209,14 +211,9 @@ class StridedSchedule(TrainingSchedule):
     label = "strided"
 
     def _sample_objectives(self, split: str) -> Iterable[Objective]:
-        if split == "train":
-            # infinite loop
-            while True:
-                for objective in self.objectives.values():
-                    if objective in self.converged_objectives and not self.args.use_converged_objectives:
-                        continue
-                    yield objective
-        else:
-            # single loop
+        # infinite loop - does not determine a termination
+        while True:
             for objective in self.objectives.values():
+                if objective in self.converged_objectives and not self.args.use_converged_objectives:
+                    continue
                 yield objective

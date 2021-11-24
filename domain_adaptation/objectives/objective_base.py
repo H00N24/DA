@@ -88,29 +88,27 @@ class Objective(abc.ABC):
                 self.val_texts = val_texts_or_path
                 self.dataset_length["eval"] = len(self.val_texts)
 
-    def per_objective_log(self, split: str, aggregation_steps: int) -> Dict[str, float]:
+    def per_objective_log(self, split: str) -> Dict[str, float]:
         out_logs = {}
         # aggregate per-logging-steps, or per-evaluation-steps, keep the results of unprocessed evaluations
-        # TODO: find out why len(outputs_history["eval"] // per_device_eval_batch_size != aggregation_steps
-        if len(self.outputs_history[split]) >= aggregation_steps:
-            logger.warning("Performing evaluation on %s samples" % len(self.outputs_history[split]))
-            # aggregate recent losses into the report, clear out losses cache
-            mean_loss = sum(self.loss_history[split]) / len(self.loss_history[split])
-            self.evaluations_history[split]["loss"].append(mean_loss)
+        logger.warning("Constructing %s logs based on %s samples" % (split, len(self.outputs_history[split])))
+        # aggregate recent losses into the report, clear out losses cache
+        mean_loss = sum(self.loss_history[split]) / len(self.loss_history[split])
+        self.evaluations_history[split]["loss"].append(mean_loss)
 
-            out_logs["%s_%s_loss" % (split, self)] = mean_loss
-            for evaluator in self.evaluators[split]:
-                n_last_logits = [logits for logits, labels in self.outputs_history[split]]
-                n_last_labels = [labels for logits, labels in self.outputs_history[split]]
+        out_logs["%s_%s_loss" % (split, self)] = mean_loss
+        for evaluator in self.evaluators[split]:
+            n_last_logits = [logits for logits, labels in self.outputs_history[split]]
+            n_last_labels = [labels for logits, labels in self.outputs_history[split]]
 
-                # evaluator should already return an aggregated value, so unlike loss, we don't average it
-                evaluator_value = evaluator(n_last_logits, n_last_labels, self.tokenizer)
-                self.evaluations_history[split][evaluator].append(evaluator_value)
-                out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
+            # evaluator should already return an aggregated value, so unlike loss, we don't average it
+            evaluator_value = evaluator(n_last_logits, n_last_labels, self.tokenizer)
+            self.evaluations_history[split][evaluator].append(evaluator_value)
+            out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
 
-            # LM logits, each of shape (batch_size, n_tokens, vocab_size) can consume a lot of memory
-            # we erase the raw outputs after the logging, to save space, but we remember the values of Evaluators
-            self.outputs_history[split] = []
+        # LM logits, each of shape (batch_size, n_tokens, vocab_size) can consume a lot of memory
+        # we erase the raw outputs after the logging, to save space, but we remember the values of Evaluators
+        self.outputs_history[split] = []
         return out_logs
 
     def has_converged(self, patience: int) -> bool:
