@@ -4,7 +4,7 @@ import abc
 import itertools
 import torch
 from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl
-from typing import List, Iterable, Dict, Any, Tuple, Union
+from typing import List, Iterable, Dict, Any, Tuple, Union, Iterator
 
 from domain_adaptation.objectives.objective_base import Objective
 from domain_adaptation.utils import TransformerAdaptationDataset, StoppingStrategy, AdaptationArguments
@@ -110,13 +110,13 @@ class TrainingSchedule(abc.ABC):
 
         return loss
 
-    def _get_one_round_objective_sampler(self, objective: Objective, obj_i: int, split: str) -> Iterable[Dict[str, Any]]:
+    def _get_one_round_objective_sampler(self, objective: Objective, obj_i: int, split: str) -> Iterator[Dict[str, Any]]:
         dataset = objective.get_dataset(split, obj_i, self.args.device)
         for sample in dataset:
             self.objectives_loss_queue.append((split, sample["oid"]))
             yield sample
 
-    def _get_infinite_objective_sampler(self, objective: Objective, obj_i: int, split: str) -> Iterable[Dict[str, Any]]:
+    def _get_infinite_objective_sampler(self, objective: Objective, obj_i: int, split: str) -> Iterator[Dict[str, Any]]:
         while True:
             # check for stopping conditions at the beginning of every objective epoch
             self.remember_if_should_stop()
@@ -126,7 +126,7 @@ class TrainingSchedule(abc.ABC):
                 self.objectives_loss_queue.append((split, sample["oid"]))
                 yield sample
 
-    def _sample_objective_dataset(self, objective: Objective, obj_i: int, split: str) -> Iterable[Dict[str, Any]]:
+    def _sample_objective_dataset(self, objective: Objective, obj_i: int, split: str) -> Iterator[Dict[str, Any]]:
         if split == "train":
             # infinite iteration of the training resources, until the termination condition apply
             return self._get_infinite_objective_sampler(objective, obj_i, split)
@@ -160,28 +160,25 @@ class TrainingSchedule(abc.ABC):
             num_passed_epochs += 1
 
     def _combine_datasets(self, split: str) -> Iterable[Dict[str, Any]]:
-        obj_data_samplers = {obj: self._sample_objective_dataset(obj, obj_i, split)
-                             for obj_i, obj in enumerate(self.objectives.values())}
-
-        passed_steps = 0
         if split == "train":
-            while not self.should_stop:
-                for objective in self._sample_objectives(split):
-                    yield next(obj_data_samplers[objective])
-                    passed_steps += 1
-                    # stop on next requested batch, if we're in the should_stop state from on_log event
-                    if self.should_stop:
-                        return
+            objective_sampler = self._sample_objectives(split)
         else:
-            # we perform a single, sequential iteration over evaluation data sets evaluation either way
-            for objective in SequentialSchedule.single_iteration_eval_sampling(self.objectives.values()):
-                yield next(obj_data_samplers[objective])
+            objective_sampler = SequentialSchedule.single_iteration_eval_sampling(self.objectives.values())
+
+        objectives_data_samplers = {obj: self._sample_objective_dataset(obj, obj_i, split) for obj_i, obj in
+                                    enumerate(self.objectives.values())}
+        for i, objective in enumerate(objective_sampler):
+            yield next(objectives_data_samplers[objective])
+            # stop on next requested batch, if we're in the should_stop state from on_log event
+            if self.should_stop:
+                return
 
     def iterable_dataset(self, split: str) -> TransformerAdaptationDataset:
-        # upper-bound of the number of training steps is used for learning rate scheduling
-        dataset_epochs = self.args.num_train_epochs if split == "train" else 1
-        length_combined = int(max((o.dataset_length[split] // o.batch_size) * dataset_epochs
-                                  for o in self.objectives.values())) * len(self.objectives)
+        length_combined = int(sum((o.dataset_length[split] // o.batch_size)
+                                  for o in self.objectives.values()))
+        if split == "train":
+            dataset_epochs = self.args.num_train_epochs if split == "train" else 1
+            length_combined *= dataset_epochs
 
         return TransformerAdaptationDataset(self._combine_datasets(split), length_combined)
 

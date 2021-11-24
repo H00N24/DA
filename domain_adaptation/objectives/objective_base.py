@@ -160,7 +160,7 @@ class Objective(abc.ABC):
     def get_dataset(self, split: str, objective_i: int, device: Union[str, torch.device]) -> AdaptationDataset:
         self.epoch += 1 if split == "train" else 0
 
-        self.progressbar[split] = trange(self.dataset_length[split] // self.batch_size + 1,
+        self.progressbar[split] = trange(self.dataset_length[split] // self.batch_size,
                                          desc=str(self),
                                          unit="batches",
                                          position=objective_i,
