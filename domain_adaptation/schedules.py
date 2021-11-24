@@ -168,7 +168,11 @@ class TrainingSchedule(abc.ABC):
         objectives_data_samplers = {obj: self._sample_objective_dataset(obj, obj_i, split) for obj_i, obj in
                                     enumerate(self.objectives.values())}
         for i, objective in enumerate(objective_sampler):
-            yield next(objectives_data_samplers[objective])
+            try:
+                yield next(objectives_data_samplers[objective])
+            except StopIteration:
+                # TODO: this should not happen
+                continue
             # stop on next requested batch, if we're in the should_stop state from on_log event
             if self.should_stop:
                 return
