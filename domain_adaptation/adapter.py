@@ -2,7 +2,7 @@ import logging
 import os
 from typing import List, Dict, Tuple, Union, Optional
 
-from transformers import PreTrainedModel, CONFIG_NAME
+from transformers import WEIGHTS_NAME
 import torch
 from transformers import Trainer, BatchEncoding
 from transformers.modeling_utils import unwrap_model
@@ -92,23 +92,26 @@ class Adapter(Trainer):
         #  so if the same objective is used multiply, we can distinguish their persistence directories
         # for now we just increment suffix over the same objective types
 
-        # we persist all registered parameters and a shared tokenizer either way
-        self.model.tokenizer.save_pretrained(output_dir)
-        self._save(output_dir)
-
         objectives_counter = {type(obj): 0 for obj in self.schedule.objectives.values()}
 
         for objective_id, module in self.model.trainable_models.items():
-            if isinstance(module, PreTrainedModel) or isinstance(unwrap_model(module), PreTrainedModel):
-                # slightly smarter config persistence
-                # for each objective we only persist the config, since the stat_dict is shared
-                objective = self.schedule.objectives[int(objective_id)]
-                output_config_file = os.path.join(output_dir, CONFIG_NAME.split(".json")[0] + "_" + str(objective))
-                # if the objective of this type was already persisted, we'll index the configs of the next ones
-                if objectives_counter[type(objective)] != 0:
-                    output_config_file += ("_" + objectives_counter[type(objective)])
-                    objectives_counter[type(objective)] += 1
+            objective = self.schedule.objectives[int(objective_id)]
+            output_module_path = os.path.join(output_dir, str(objective))
 
-                output_config_file += ".json"
-                module.config.to_json_file(output_config_file, use_diff=True)
-                logger.info(f"Configuration saved in {output_config_file}")
+            # if the objective of this type was already persisted, we'll index the configs of the next ones
+            if objectives_counter[type(objective)] != 0:
+                output_module_path += ("_" + objectives_counter[type(objective)])
+                objectives_counter[type(objective)] += 1
+
+            # we persist a shared tokenizer and training args either way
+            self.model.tokenizer.save_pretrained(output_module_path)
+            self._save(output_module_path)
+
+            if hasattr(module, "save_pretrained") or hasattr(unwrap_model(module), "save_pretrained"):
+                # if the head module has "save_pretrained" method, it will be called for persistence
+                module.save_pretrained(output_module_path, use_diff=True)
+            else:
+                # otherwise, we persist only a raw pytorch module
+                torch.save(module.state_dict(), os.path.join(output_module_path, WEIGHTS_NAME))
+
+            logger.info(f"Model of objective {str(objective)} saved in {output_module_path}")

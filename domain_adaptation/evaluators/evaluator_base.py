@@ -10,6 +10,7 @@ from domain_adaptation.utils import Head
 class EvaluatorBase(abc.ABC):
 
     compatible_head: Head
+    smaller_is_better: bool
 
     def __init__(self, decides_convergence: bool = False):
         self.determines_convergence = decides_convergence

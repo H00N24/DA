@@ -10,6 +10,7 @@ from domain_adaptation.utils import Head
 class Accuracy(EvaluatorBase):
 
     compatible_head: Head = Head.SEQ_CLASSIFICATION
+    smaller_is_better: bool = False
 
     @staticmethod
     def __call__(logit_outputs: List[torch.FloatTensor],

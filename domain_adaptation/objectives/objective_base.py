@@ -93,6 +93,7 @@ class Objective(abc.ABC):
         # aggregate per-logging-steps, or per-evaluation-steps, keep the results of unprocessed evaluations
         # TODO: find out why len(outputs_history["eval"] // per_device_eval_batch_size != aggregation_steps
         if len(self.outputs_history[split]) >= aggregation_steps:
+            logger.warning("Performing evaluation on %s samples" % len(self.outputs_history[split]))
             # aggregate recent losses into the report, clear out losses cache
             mean_loss = sum(self.loss_history[split]) / len(self.loss_history[split])
             self.evaluations_history[split]["loss"].append(mean_loss)
@@ -122,11 +123,18 @@ class Objective(abc.ABC):
 
         passed_patience_evals = len(self.evaluations_history["eval"][stopping_evaluator]) > patience
         if not passed_patience_evals:
+            # less than `patience` evaluations has passed so far
             return False
-        did_not_improve = max(self.evaluations_history["eval"][stopping_evaluator][:-patience]) >= \
-                          max(self.evaluations_history["eval"][stopping_evaluator][-patience:])
-        logger.warning("Objective %s convergence metric %s did not improve for %s eval steps" %
-                       (self, stopping_evaluator, patience))
+
+        if stopping_evaluator == "loss" or stopping_evaluator.smaller_is_better:
+            did_not_improve = max(self.evaluations_history["eval"][stopping_evaluator][:-patience]) >= \
+                              max(self.evaluations_history["eval"][stopping_evaluator][-patience:])
+        else:
+            did_not_improve = max(self.evaluations_history["eval"][stopping_evaluator][:-patience]) >= \
+                              max(self.evaluations_history["eval"][stopping_evaluator][-patience:])
+        if did_not_improve:
+            logger.warning("Objective %s convergence metric %s did not improve for %s eval steps" %
+                           (self, stopping_evaluator, patience))
 
         return passed_patience_evals and did_not_improve
 

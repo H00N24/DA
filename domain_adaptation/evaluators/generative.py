@@ -12,6 +12,7 @@ from ..utils import Head
 class BLEU(EvaluatorBase):
 
     compatible_head: Head = Head.LANGUAGE_MODEL
+    smaller_is_better: bool = False
 
     @staticmethod
     def __call__(logit_outputs: List[torch.FloatTensor],
