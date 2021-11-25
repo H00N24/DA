@@ -37,15 +37,15 @@ training_arguments = AdaptationArguments(output_dir=output_model_dir,
                                          do_train=True,
                                          do_eval=True,
                                          warmup_steps=10000,
-                                         gradient_accumulation_steps=4,
+                                         gradient_accumulation_steps=10,
                                          logging_steps=50,
-                                         eval_steps=2,
+                                         eval_steps=250,
                                          save_steps=1000,
-                                         num_train_epochs=20,
+                                         num_train_epochs=30,
                                          evaluation_strategy="steps",
                                          dataloader_pin_memory=False)
 lang_module = LangModule("Helsinki-NLP/opus-mt-en-cs")
-lang_module.reinitialize()
+# lang_module.reinitialize()
 
 train_bleu = BLEU()
 val_bleu = BLEU(decides_convergence=True)

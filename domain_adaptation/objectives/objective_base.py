@@ -121,6 +121,10 @@ class Objective(abc.ABC):
         else:
             stopping_evaluator = "loss"
 
+        # the objective was not active, in the recent logging interval -> it should not be marked converged
+        if not self.evaluations_history["train"][stopping_evaluator]:
+            return False
+
         passed_patience_evals = len(self.evaluations_history["eval"][stopping_evaluator]) > patience
         if not passed_patience_evals:
             # less than `patience` evaluations has passed so far
@@ -138,8 +142,12 @@ class Objective(abc.ABC):
 
         return passed_patience_evals and did_not_improve
 
-    def _register_outputs(self, split: str, logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> None:
+    def _register_outputs(self, split: str, logit_outputs: torch.FloatTensor, labels: torch.LongTensor,
+                          remember_at_most: int = 100) -> None:
         self.outputs_history[split].append((logit_outputs.detach().cpu(), labels.detach().cpu()))
+
+        # memory saving shortcut
+        self.outputs_history[split] = self.outputs_history[split][-remember_at_most:]
 
     @abc.abstractmethod
     def _compute_loss(self, logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
@@ -266,8 +274,8 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
 
     def register_compatible_head_model(self, lang_module: LangModule,
                                        other_objective: Optional["Objective"],
-                                       objective_args_for_head_config: Optional[Dict[str, Any]],
-                                       preloaded_module: Optional[torch.nn.Module]) -> torch.nn.Module:
+                                       objective_args_for_head_config: Optional[Dict[str, Any]] = None,
+                                       preloaded_module: Optional[torch.nn.Module] = None) -> torch.nn.Module:
         if self.labels is not None:
             all_labels = self.labels
         else:
