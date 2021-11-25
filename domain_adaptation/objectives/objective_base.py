@@ -92,23 +92,25 @@ class Objective(abc.ABC):
         out_logs = {}
         # aggregate per-logging-steps, or per-evaluation-steps, keep the results of unprocessed evaluations
         logger.warning("Constructing %s logs based on %s samples" % (split, len(self.outputs_history[split])))
-        # aggregate recent losses into the report, clear out losses cache
-        mean_loss = sum(self.loss_history[split]) / len(self.loss_history[split])
-        self.evaluations_history[split]["loss"].append(mean_loss)
+        if self.outputs_history[split]:
+            # if nonempty (last evaluation)
+            # aggregate recent losses into the report, clear out losses cache
+            mean_loss = sum(self.loss_history[split]) / len(self.loss_history[split])
+            self.evaluations_history[split]["loss"].append(mean_loss)
 
-        out_logs["%s_%s_loss" % (split, self)] = mean_loss
-        for evaluator in self.evaluators[split]:
-            n_last_logits = [logits for logits, labels in self.outputs_history[split]]
-            n_last_labels = [labels for logits, labels in self.outputs_history[split]]
+            out_logs["%s_%s_loss" % (split, self)] = mean_loss
+            for evaluator in self.evaluators[split]:
+                n_last_logits = [logits for logits, labels in self.outputs_history[split]]
+                n_last_labels = [labels for logits, labels in self.outputs_history[split]]
 
-            # evaluator should already return an aggregated value, so unlike loss, we don't average it
-            evaluator_value = evaluator(n_last_logits, n_last_labels, self.tokenizer)
-            self.evaluations_history[split][evaluator].append(evaluator_value)
-            out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
+                # evaluator should already return an aggregated value, so unlike loss, we don't average it
+                evaluator_value = evaluator(n_last_logits, n_last_labels, self.tokenizer)
+                self.evaluations_history[split][evaluator].append(evaluator_value)
+                out_logs["%s_%s_%s" % (split, self, evaluator)] = evaluator_value
 
-        # LM logits, each of shape (batch_size, n_tokens, vocab_size) can consume a lot of memory
-        # we erase the raw outputs after the logging, to save space, but we remember the values of Evaluators
-        self.outputs_history[split] = []
+            # LM logits, each of shape (batch_size, n_tokens, vocab_size) can consume a lot of memory
+            # we erase the raw outputs after the logging, to save space, but we remember the values of Evaluators
+            self.outputs_history[split] = []
         return out_logs
 
     def has_converged(self, patience: int) -> bool:
@@ -123,16 +125,16 @@ class Objective(abc.ABC):
         if not passed_patience_evals:
             # less than `patience` evaluations has passed so far
             return False
-
+        last_n = self.evaluations_history["eval"][stopping_evaluator][-patience:]
+        previous = self.evaluations_history["eval"][stopping_evaluator][:-patience]
         if stopping_evaluator == "loss" or stopping_evaluator.smaller_is_better:
-            did_not_improve = max(self.evaluations_history["eval"][stopping_evaluator][:-patience]) >= \
-                              max(self.evaluations_history["eval"][stopping_evaluator][-patience:])
+            did_not_improve = min(previous) <= min(last_n)
         else:
-            did_not_improve = max(self.evaluations_history["eval"][stopping_evaluator][:-patience]) >= \
-                              max(self.evaluations_history["eval"][stopping_evaluator][-patience:])
+            did_not_improve = max(previous) >= max(last_n)
+
         if did_not_improve:
-            logger.warning("Objective %s convergence metric %s did not improve for %s eval steps" %
-                           (self, stopping_evaluator, patience))
+            logger.warning("Objective %s convergence metric %s did not improve for %s eval steps. History: %s" %
+                           (self, stopping_evaluator, patience, previous))
 
         return passed_patience_evals and did_not_improve
 

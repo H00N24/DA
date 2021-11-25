@@ -68,7 +68,16 @@ class TransformerAdaptationDataset(AdaptationDataset):
         so that Schedules can perform item-level sampling.
         :return: iterator over the samples of the dataset.
         """
-        return iter(self.batch_encoding_params)
+        worker_info = torch.utils.data.get_worker_info()
+
+        for i, encoded_sample in enumerate(self.batch_encoding_params):
+            if worker_info is not None:
+                # multi-gpu DataParallel
+                if (i - worker_info.id) % worker_info.num_workers == 0:
+                    # sample modulo number of all workers match this worker rank
+                    yield encoded_sample
+            else:
+                yield encoded_sample
 
 
 class AdaptationArguments(TrainingArguments):
@@ -89,14 +98,12 @@ class AdaptationArguments(TrainingArguments):
                  stopping_strategy: StoppingStrategy,
                  stopping_patience: Optional[int] = 10,
                  sample_converged_objectives: bool = False,
-                 separate_heads: bool = False,
                  **kwargs):
 
         # novel arguments, w.r.t. original TrainingArguments
         self.stopping_strategy = stopping_strategy
         self.stopping_patience = stopping_patience
         self.use_converged_objectives = sample_converged_objectives
-        self.separate_heads = separate_heads  # TODO
 
         # adjustments of the defaults expected by Scheduler
         unexpected_adjusted_args = [arg for arg in kwargs.keys() if arg in self.fixed_adaptation_args.keys()]
