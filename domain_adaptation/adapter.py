@@ -46,24 +46,21 @@ class Adapter(Trainer):
                          **kwargs)
 
     @staticmethod
-    def flattened_collator(features: List[BatchEncoding]) -> List[BatchEncoding]:
+    def flattened_collator(features: List[BatchEncoding]) -> BatchEncoding:
         """
         Objectives take care of their own data collation, so this collator just flattens the outputs of batch_size=1.
         Trainer should keep the passed `per_device_*_batch_size` even on multiGPU training, so no data is omitted.
         :return: loss and a placeholder of unused outputs, for compatibility
         """
-        # assert len(features) == 1  # TODO: on multi-gpu training, this does not hold
+        assert len(features) == 1  # TODO: on multi-gpu training, this does not hold
 
-        # return features[0]
-        return features
+        return features[0]
 
-    def compute_loss(self, model: LangModule, inputs: List[Dict[str, torch.Tensor]],
-                     return_outputs: bool = False) -> Union[torch.FloatTensor, Tuple[torch.FloatTensor, None]]:
-        assert len(inputs) == 1, "Per-device sampling should contain only samples of a single objective"
+    def compute_loss(self, model: LangModule, inputs: Dict[str, torch.Tensor], return_outputs: bool = False) -> Union[
+        torch.FloatTensor, Tuple[torch.FloatTensor, None]]:
+        labels = inputs["labels"] if "labels" in inputs else inputs["label"]
 
-        labels = inputs[0]["labels"] if "labels" in inputs[0] else inputs[0]["label"]
-
-        outputs = model(**inputs[0])[0]
+        outputs = model(**inputs)
         if self.label_smoother is not None:
             raise NotImplementedError()  # objective-dependent label smoothing is custom
             # loss = self.label_smoother(outputs, labels)
