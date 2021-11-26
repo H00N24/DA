@@ -113,3 +113,10 @@ class AdaptationArguments(TrainingArguments):
         # set default values to fixed args
         kwargs = {**kwargs, **self.fixed_adaptation_args}
         super().__init__(**kwargs)
+
+        # TODO: support for single-node multi-GPU DistributedModel
+        # self.train_batch_size = 1
+
+    # @train_batch_size.setter
+    # def train_batch_size(self, value):
+    #     self.train_batch_size = value

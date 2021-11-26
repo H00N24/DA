@@ -105,7 +105,7 @@ class Adapter(Trainer):
 
             # we persist a shared tokenizer and training args either way
             self.model.tokenizer.save_pretrained(output_module_path)
-            self._save(output_module_path)
+            torch.save(self.args, os.path.join(output_dir, "training_args.bin"))
 
             if hasattr(module, "save_pretrained") or hasattr(unwrap_model(module), "save_pretrained"):
                 # if the head module has "save_pretrained" method, it will be called for persistence

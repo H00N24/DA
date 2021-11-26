@@ -1,10 +1,5 @@
 """
-Example script Machine Translation adaptation
-We train a NMT model on Wikipedia parallel corpus while adapting it to OpenSubtitles domain.
-
-We perform the following steps:
-1. Load datasets: once available, this can be rewritten for HF Datasets library
-2. Perform a combined adaptation on both parallel data and monolingual, OpenSubtitles domain: Strided schedule.
+TODO: comment
 """
 import argparse
 
@@ -39,13 +34,16 @@ if __name__ == "__main__":
     assert hasattr(lm_model, "generate"), "For translation, we need a model that implements its own generate()."
 
     translations = []
+    references = []
 
-    for src_text in tqdm(adapted_test_dataset.source):
+    for src_text, ref_text in tqdm(zip(adapted_test_dataset.source, adapted_test_dataset.target),
+                                   total=len(adapted_test_dataset.source)):
         inputs = tokenizer(src_text, truncation=True, return_tensors="pt").to(args.device)
         outputs = lm_model.generate(**inputs)
         translations.extend(tokenizer.batch_decode(outputs))
+        references.append(ref_text)
         if len(translations) % 10 == 0:
-            print("BLEU: %s" % BLEU.evaluate_str(translations, adapted_test_dataset.target))
+            print("BLEU: %s" % BLEU.evaluate_str(translations, references))
 
     bleu = BLEU.evaluate_str(translations, adapted_test_dataset.target)
 
