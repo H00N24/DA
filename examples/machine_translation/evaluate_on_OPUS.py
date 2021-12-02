@@ -13,8 +13,6 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--model_name_or_path', type=str, help='Path of the fine-tuned checkpoint.',
                            required=True)
-    argparser.add_argument('--config_file_path', type=str, help='Path of the config of the used head.',
-                           required=True)
     argparser.add_argument('--opus_dataset', type=str, required=True,
                            help='One of the recognized OPUS datasets: %s' % OPUS_RESOURCES_URLS)
     argparser.add_argument('--src_lang', type=str, required=True, help='Source language of the OPUS data set.')
@@ -27,7 +25,7 @@ if __name__ == "__main__":
     adapted_test_dataset = OPUSDataset(args.opus_dataset, src_lang=args.src_lang, tgt_lang=args.tgt_lang,
                                        split="test", data_dir=args.data_dir, firstn=args.firstn)
 
-    config = AutoConfig.from_pretrained(args.config_file_path)
+    config = AutoConfig.from_pretrained(args.model_name_or_path)
     lm_model = AutoModelWithLMHead.from_pretrained(args.model_name_or_path, config=config).to(args.device)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, config=config)
 
@@ -45,7 +43,7 @@ if __name__ == "__main__":
         if len(translations) % 10 == 0:
             print("BLEU: %s" % BLEU.evaluate_str(translations, references))
 
-    bleu = BLEU.evaluate_str(translations, adapted_test_dataset.target)
+    bleu = BLEU().evaluate_str(translations, adapted_test_dataset.target)
 
     print("Test BLEU on %s (%s->%s): %s" % (args.opus_dataset, args.src_lang, args.tgt_lang, bleu))
     print("Done")
