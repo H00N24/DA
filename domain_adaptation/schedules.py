@@ -1,10 +1,9 @@
-import logging
-
 import abc
-import itertools
+import logging
+from typing import List, Iterable, Dict, Any, Tuple, Iterator
+
 import torch
 from transformers import TrainerCallback, TrainingArguments, TrainerState, TrainerControl
-from typing import List, Iterable, Dict, Any, Tuple, Union, Iterator
 
 from domain_adaptation.objectives.objective_base import Objective
 from domain_adaptation.utils import TransformerAdaptationDataset, StoppingStrategy, AdaptationArguments
@@ -38,13 +37,6 @@ class TrainingSchedule(abc.ABC):
             out_logs = {**out_logs, **objective.per_objective_log(split)}
 
         return out_logs
-
-    def _objective_converged(self, oid: int) -> bool:
-        passed_patience_evals = len(self.objectives[oid].loss_history["eval"]) >= self.args.stopping_patience
-        did_not_improve = max(self.objectives[oid].loss_history["eval"][:-self.args.stopping_patience]) >= \
-                          max(self.objectives[oid].loss_history["eval"][-self.args.stopping_patience:])
-
-        return passed_patience_evals and did_not_improve
 
     def _objective_passed_epochs(self, oid: int) -> bool:
         return self.objectives[oid].epoch >= self.args.num_train_epochs

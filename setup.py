@@ -21,6 +21,14 @@ setup(
         "transformers[sentencepiece]==4.10.2",
         "torch",
         "pytest",
-        "sacrebleu"
+        "sacrebleu",
+        "rouge-score"
     ],
+    extras_require={
+        "generative": [
+            "sacrebleu",
+            "rouge-score",
+            "bert-score"
+        ],
+    },
 )

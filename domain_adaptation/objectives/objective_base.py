@@ -99,6 +99,7 @@ class Objective(abc.ABC):
             self.evaluations_history[split]["loss"].append(mean_loss)
 
             out_logs["%s_%s_loss" % (split, self)] = mean_loss
+            out_logs["%s_%s_num_batches" % (split, self)] = len(self.outputs_history[split])
             for evaluator in self.evaluators[split]:
                 n_last_logits = [logits for logits, labels in self.outputs_history[split]]
                 n_last_labels = [labels for logits, labels in self.outputs_history[split]]
@@ -114,15 +115,15 @@ class Objective(abc.ABC):
         return out_logs
 
     def has_converged(self, patience: int) -> bool:
-        convergence_evaluators = [e for e in self.evaluators
+        convergence_evaluators = [e for e in self.evaluators['eval']
                                   if isinstance(e, EvaluatorBase) and e.determines_convergence]
         if convergence_evaluators:
             stopping_evaluator = convergence_evaluators[0]
         else:
             stopping_evaluator = "loss"
 
-        # the objective was not active, in the recent logging interval -> it should not be marked converged
-        if not self.evaluations_history["train"][stopping_evaluator]:
+        # the objective was not active in the recent logging interval -> it should not be marked converged
+        if not any(self.evaluations_history["train"][e] for e in self.evaluators['train']):
             return False
 
         passed_patience_evals = len(self.evaluations_history["eval"][stopping_evaluator]) > patience
@@ -137,8 +138,8 @@ class Objective(abc.ABC):
             did_not_improve = max(previous) >= max(last_n)
 
         if did_not_improve:
-            logger.warning("Objective %s convergence metric %s did not improve for %s eval steps. History: %s" %
-                           (self, stopping_evaluator, patience, previous))
+            logger.warning("Objective `%s` convergence metric `%s` did not improve for %s eval steps. History: %s" %
+                           (self, stopping_evaluator, patience, last_n))
 
         return passed_patience_evals and did_not_improve
 

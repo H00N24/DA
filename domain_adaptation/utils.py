@@ -1,14 +1,10 @@
-from dataclasses import dataclass
-
 import abc
-import os
 from enum import Enum
-from typing import Dict, Iterable, Iterator, Optional, List, Set, Tuple, Union
+from typing import Dict, Iterable, Iterator, Optional
 
 import torch
 from torch.utils.data import IterableDataset
-import tqdm
-from transformers import BatchEncoding, TrainingArguments, CONFIG_NAME
+from transformers import BatchEncoding, TrainingArguments
 
 
 class Head(Enum):
@@ -90,6 +86,7 @@ class AdaptationArguments(TrainingArguments):
             "do_predict": False,  # we do not want to mangle with multi-objective reports here,
                                   # models are separately reloadable
             "disable_tqdm": True,  # scheduler takes care of top-level terminal monitoring
+            "dataloader_pin_memory": False,  # does not necessarily match the shapes in multi-objective training
             "max_steps": -1,  # max steps are used to dynamically set a learning rate,
                               # setting it to a default (-1) will set it to num_epochs*sum(objectives.dataset_length)
     }
