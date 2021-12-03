@@ -14,9 +14,6 @@ class TokenClassification(SupervisedObjective):
 
     compatible_head = Head.TOKEN_CLASSIFICATION
 
-    # TODO: this should be persisted in config of *_classification-heads models
-    labels_map: Dict[str, int] = {}
-
     def __init__(self, lang_module: LangModule, batch_size: int,
                  texts_or_path: Union[str, List[str]], labels_or_path: Union[str, List[str]],
                  val_texts_or_path: Optional[Union[str, List[str]]] = None,
@@ -67,12 +64,7 @@ class TokenClassification(SupervisedObjective):
                     # if the next token starts with a current wordpiece, move to the next token + label
                     current_token = tokens.pop(0)
                     current_label = labels.pop(0)
-                try:
-                    out_label_ids.append(self.labels_map[current_label])
-                except KeyError:
-                    # previously-unseen label
-                    self.labels_map[current_label] = len(self.labels_map)
-                    out_label_ids.append(self.labels_map[current_label])
+                out_label_ids.append(self.labels_map[current_label])
 
             batch_features.append({"input_ids": wpiece_ids,
                                    "attention_mask": attention_mask,

@@ -244,6 +244,8 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
     val_labels_path: Optional[str] = None
     val_labels: Optional[List[str]] = None
 
+    labels_map: Dict[str, int] = {}
+
     def __init__(self,
                  lang_module: LangModule,
                  batch_size: int,
@@ -283,10 +285,14 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
             with open(self.labels_path) as f:
                 all_labels = [l.strip() for l in f.readlines()]
         if self.compatible_head == Head.TOKEN_CLASSIFICATION:
-            all_labels = itertools.chain(*(token_labels_str.split() for token_labels_str in all_labels))
+            all_labels = set(itertools.chain(*(token_labels_str.split() for token_labels_str in all_labels)))
+
+        self.labels_map = {val: i for i, val in enumerate(sorted(all_labels))}
 
         objective_args_for_head_config = {**objective_args_for_head_config,
-                                          **{"num_labels": len(set(all_labels))}}
+                                          "num_labels": len(all_labels),
+                                          "label2id": self.labels_map,
+                                          "id2label": {v: k for k, v in self.labels_map.items()}}
         head_module = super().register_compatible_head_model(lang_module, other_objective,
                                                              objective_args_for_head_config, preloaded_module)
         return head_module
