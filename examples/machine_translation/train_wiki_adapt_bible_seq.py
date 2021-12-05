@@ -9,10 +9,11 @@ We perform the following steps:
 import comet_ml  # TODO: resolve this smarter
 
 from domain_adaptation.adapter import Adapter
-from domain_adaptation.evaluators.generative import BLEU
+from domain_adaptation.evaluators.generative import BLEU, ROUGE, BERTScore
 from domain_adaptation.lang_module import LangModule
 from domain_adaptation.objectives.denoising import DenoisingObjective
 from domain_adaptation.objectives.seq2seq import DecoderSequence2Sequence
+from domain_adaptation.objectives.seq2seq_soft import MinimumFlow
 from domain_adaptation.schedules import StridedSchedule, SequentialSchedule
 from domain_adaptation.utils import AdaptationArguments, StoppingStrategy
 
@@ -42,33 +43,43 @@ training_arguments = AdaptationArguments(output_dir=output_model_dir,
                                          eval_steps=250,
                                          save_steps=1000,
                                          num_train_epochs=30,
-                                         evaluation_strategy="steps",
-                                         dataloader_pin_memory=False)
+                                         evaluation_strategy="steps")
 lang_module = LangModule("Helsinki-NLP/opus-mt-en-cs")
 # lang_module.reinitialize()
 
-train_bleu = BLEU()
-val_bleu = BLEU(decides_convergence=True)
+train_metrics = [BLEU(), ROUGE(), BERTScore()]
+val_metrics = [BLEU(), ROUGE(), BERTScore(decides_convergence=True)]
 
-denoising_adaptation = DenoisingObjective(lang_module,
-                                          texts_or_path=adapt_source.source,
-                                          val_texts_or_path=adapt_val_source.source,
-                                          batch_size=8,
-                                          train_evaluators=[train_bleu],
-                                          val_evaluators=[val_bleu])
+# denoising_adaptation = DenoisingObjective(lang_module,
+#                                           texts_or_path=adapt_source.source,
+#                                           val_texts_or_path=adapt_val_source.source,
+#                                           batch_size=8,
+#                                           train_evaluators=train_metrics,
+#                                           val_evaluators=val_metrics)
+#
+# clm_training = DecoderSequence2Sequence(lang_module,
+#                                         texts_or_path=train_source.source,
+#                                         labels_or_path=train_source.target,
+#                                         val_texts_or_path=train_val_source.source,
+#                                         val_labels_or_path=train_val_source.target,
+#                                         source_lang_id="en",
+#                                         target_lang_id="cs",
+#                                         batch_size=8,
+#                                         train_evaluators=train_metrics,
+#                                         val_evaluators=val_metrics)
 
-clm_training = DecoderSequence2Sequence(lang_module,
-                                        texts_or_path=train_source.source,
-                                        labels_or_path=train_source.target,
-                                        val_texts_or_path=train_val_source.source,
-                                        val_labels_or_path=train_val_source.target,
-                                        source_lang_id="en",
-                                        target_lang_id="cs",
-                                        batch_size=8,
-                                        train_evaluators=[train_bleu],
-                                        val_evaluators=[val_bleu])
+flow_objective = MinimumFlow(lang_module=lang_module,
+                             texts_or_path=train_source.source,
+                             labels_or_path=train_source.target,
+                             val_texts_or_path=train_val_source.source,
+                             val_labels_or_path=train_val_source.target,
+                             source_lang_id="en",
+                             target_lang_id="cs",
+                             batch_size=8,
+                             train_evaluators=train_metrics,
+                             val_evaluators=val_metrics)
 
-schedule = SequentialSchedule(objectives=[denoising_adaptation, clm_training], args=training_arguments)
+schedule = SequentialSchedule(objectives=[flow_objective], args=training_arguments)
 
 adapter = Adapter(lang_module, schedule, args=training_arguments)
 adapter.train()
