@@ -92,10 +92,10 @@ class Adapter(Trainer):
         #  so if the same objective is used multiply, we can distinguish their persistence directories
         # for now we just increment suffix over the same objective types
 
-        objectives_counter = {type(obj): 0 for obj in self.schedule.objectives.values()}
+        objectives_counter = {type(obj): 0 for obj in self.schedule.objectives["train"].values()}
 
         for objective_id, module in self.model.trainable_models.items():
-            objective = self.schedule.objectives[int(objective_id)]
+            objective = self.schedule.objectives["train"][int(objective_id)]
             output_module_path = os.path.join(output_dir, str(objective))
 
             # if the objective of this type was already persisted, we'll index the configs of the next ones
