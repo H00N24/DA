@@ -200,11 +200,14 @@ class Objective(abc.ABC):
                                        other_objective: Optional["Objective"],
                                        objective_args_for_head_config: Optional[Dict[str, Any]] = None,
                                        preloaded_module: Optional[torch.nn.Module] = None) -> torch.nn.Module:
+        head_config = objective_args_for_head_config if objective_args_for_head_config is not None else {}
+
         if other_objective is not None:
-            return other_objective.compatible_head_model
-        else:
-            head_config = objective_args_for_head_config if objective_args_for_head_config is not None else {}
-            return lang_module.load_training_head(self.compatible_head, str(id(self)), head_config, preloaded_module)
+            logger.warning("Objective %s will share %s head with %s objective",
+                           self, self.compatible_head.name, other_objective)
+            preloaded_module = other_objective.compatible_head_model
+
+        return lang_module.load_training_head(self.compatible_head, str(id(self)), head_config, preloaded_module)
 
     def __str__(self) -> str:
         return str(self.__class__.__name__)
@@ -254,7 +257,9 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
                  val_texts_or_path: Optional[Union[str, List[str]]] = None,
                  val_labels_or_path: Optional[Union[str, List[str]]] = None,
                  train_evaluators: Sequence[EvaluatorBase] = (),
-                 val_evaluators: Sequence[EvaluatorBase] = ()):
+                 val_evaluators: Sequence[EvaluatorBase] = (),
+                 share_other_objective_head: Optional["Objective"] = None,
+                 objective_module: Optional[torch.nn.Module] = None):
 
         if type(labels_or_path) == str:
             self.labels_path = labels_or_path
@@ -273,7 +278,9 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
                          texts_or_path=texts_or_path,
                          val_texts_or_path=val_texts_or_path,
                          train_evaluators=train_evaluators,
-                         val_evaluators=val_evaluators)
+                         val_evaluators=val_evaluators,
+                         share_other_objective_head=share_other_objective_head,
+                         objective_module=objective_module)
 
     def register_compatible_head_model(self, lang_module: LangModule,
                                        other_objective: Optional["Objective"],
