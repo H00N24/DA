@@ -95,15 +95,14 @@ class MinimumFlow(DecoderSequence2Sequence):
         self.sample_trials = kwargs["sample_trials"] if "sample_trials" in kwargs else 16
 
     def _lowest_pairwise_dists(self, ref_tokens: torch.LongTensor, hyp_tokens: torch.LongTensor) -> torch.Tensor:
-        with torch.no_grad():
-            ref_tokens_padded = torch.clone(ref_tokens)
-            ref_tokens_padded[ref_tokens_padded < 0] = self.tokenizer.pad_token_id
-            ref_embeddings = self.lang_model(input_ids=ref_tokens_padded).last_hidden_state
+        ref_tokens_padded = torch.clone(ref_tokens)
+        ref_tokens_padded[ref_tokens_padded < 0] = self.tokenizer.pad_token_id
+        ref_embeddings = self.lang_model(input_ids=ref_tokens_padded).last_hidden_state
 
-            per_samples_embeddings = []
-            # re-batch, in order to be able to sample more
-            for batch_hyp in hyp_tokens:
-                per_samples_embeddings.append(self.lang_model(input_ids=batch_hyp).last_hidden_state)
+        per_samples_embeddings = []
+        # re-batch, in order to be able to sample more
+        for batch_hyp in hyp_tokens:
+            per_samples_embeddings.append(self.lang_model(input_ids=batch_hyp).last_hidden_state)
 
         per_samples_dists = []
         for ref_embeddings, hyps_embeddings in zip(ref_embeddings, per_samples_embeddings):
