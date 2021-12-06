@@ -26,6 +26,9 @@ output_model_dir = "adapted_model"
 train_source = OPUSDataset("wikimedia", split="train", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir)
 train_val_source = OPUSDataset("wikimedia", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=300)
 
+adapt_val_source1 = OPUSDataset("Bible", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=300)
+adapt_val_source2 = OPUSDataset("OpenSubtitles", split="val", src_lang="en", tgt_lang="cs", data_dir=tmp_data_dir, firstn=300)
+
 # 2. Perform a combined adaptation on both parallel data and monolingual, OpenSubtitles domain: Strided schedule.
 training_arguments = AdaptationArguments(output_dir=output_model_dir,
                                          learning_rate=2e-5,
@@ -34,8 +37,8 @@ training_arguments = AdaptationArguments(output_dir=output_model_dir,
                                          do_eval=True,
                                          warmup_steps=10000,
                                          gradient_accumulation_steps=20,
-                                         logging_steps=50,
-                                         eval_steps=250,
+                                         logging_steps=2,
+                                         eval_steps=2,
                                          save_steps=1000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps")
@@ -70,7 +73,34 @@ clm_training = DecoderSequence2Sequence(lang_module,
                                         val_evaluators=val_metrics,
                                         share_other_objective_head=flow_objective)
 
-schedule = StridedSchedule(objectives=[flow_objective, clm_training], args=training_arguments)
+clm_eval_bible = DecoderSequence2Sequence(lang_module,
+                                          texts_or_path=[],
+                                          labels_or_path=[],
+                                          val_texts_or_path=adapt_val_source1.source,
+                                          val_labels_or_path=adapt_val_source1.target,
+                                          source_lang_id="en",
+                                          target_lang_id="cs",
+                                          batch_size=1,
+                                          train_evaluators=train_metrics,
+                                          val_evaluators=val_metrics,
+                                          share_other_objective_head=flow_objective)
+
+clm_eval_opensub = DecoderSequence2Sequence(lang_module,
+                                            texts_or_path=[],
+                                            labels_or_path=[],
+                                            val_texts_or_path=adapt_val_source2.source,
+                                            val_labels_or_path=adapt_val_source2.target,
+                                            source_lang_id="en",
+                                            target_lang_id="cs",
+                                            batch_size=1,
+                                            train_evaluators=train_metrics,
+                                            val_evaluators=val_metrics,
+                                            share_other_objective_head=flow_objective)
+
+
+schedule = StridedSchedule(objectives=[flow_objective, clm_training],
+                           eval_objectives=[clm_eval_bible, clm_eval_opensub],
+                           args=training_arguments)
 
 adapter = Adapter(lang_module, schedule, args=training_arguments)
 adapter.train()
