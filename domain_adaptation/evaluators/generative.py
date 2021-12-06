@@ -68,6 +68,8 @@ class ROUGE(GenerativeEvaluator):
 
 class BERTScore(GenerativeEvaluator):
 
+    smaller_is_better: bool = False
+
     def __init__(self, decides_convergence: bool = False, additional_sep_char: Optional[str] = None):
         super().__init__(decides_convergence, additional_sep_char)
 

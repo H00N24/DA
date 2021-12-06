@@ -4,6 +4,7 @@ import itertools
 import random
 from typing import List, Tuple, Optional, Union, Iterator, Sequence
 
+import torch
 from transformers import DataCollatorForSeq2Seq
 
 from .seq2seq import DecoderSequence2SequenceMixin
@@ -132,6 +133,8 @@ class DenoisingObjective(DecoderSequence2SequenceMixin, UnsupervisedObjective):
                  val_texts_or_path: Optional[Union[str, List[str]]] = None,
                  train_evaluators: Sequence[EvaluatorBase] = (),
                  val_evaluators: Sequence[EvaluatorBase] = (),
+                 share_other_objective_head: Optional["Objective"] = None,
+                 objective_module: Optional[torch.nn.Module] = None,
                  noising_strategies: Optional[List[NoisingStrategy]] = None,
                  noising_prob: float = 0.6,
                  noising_per_sentence: bool = True):
@@ -140,7 +143,9 @@ class DenoisingObjective(DecoderSequence2SequenceMixin, UnsupervisedObjective):
                          texts_or_path=texts_or_path,
                          val_texts_or_path=val_texts_or_path,
                          train_evaluators=train_evaluators,
-                         val_evaluators=val_evaluators)
+                         val_evaluators=val_evaluators,
+                         share_other_objective_head=share_other_objective_head,
+                         objective_module=objective_module)
 
         if noising_strategies is None:
             self.noising_strategies = [Shuffle(application_ratio=noising_prob)]
