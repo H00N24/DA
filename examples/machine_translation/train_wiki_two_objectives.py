@@ -54,11 +54,23 @@ flow_objective = MinimumFlow(lang_module=lang_module,
                              val_labels_or_path=train_val_source.target,
                              source_lang_id="en",
                              target_lang_id="cs",
-                             batch_size=2,
+                             batch_size=1,
                              train_evaluators=train_metrics,
                              val_evaluators=val_metrics)
 
-schedule = SequentialSchedule(objectives=[flow_objective], args=training_arguments)
+clm_training = DecoderSequence2Sequence(lang_module,
+                                        texts_or_path=train_source.source,
+                                        labels_or_path=train_source.target,
+                                        val_texts_or_path=train_val_source.source,
+                                        val_labels_or_path=train_val_source.target,
+                                        source_lang_id="en",
+                                        target_lang_id="cs",
+                                        batch_size=1,
+                                        train_evaluators=train_metrics,
+                                        val_evaluators=val_metrics,
+                                        share_other_objective_head=flow_objective)
+
+schedule = StridedSchedule(objectives=[flow_objective, clm_training], args=training_arguments)
 
 adapter = Adapter(lang_module, schedule, args=training_arguments)
 adapter.train()
