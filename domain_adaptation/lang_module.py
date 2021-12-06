@@ -57,8 +57,7 @@ class LangModule(torch.nn.Module):
 
         # this applies to the 2nd+ -added models: they adopt the shared parameters of the first lang_module
         if len(self.trainable_models) > 1:
-            unmatched_modules = self._partially_match_models(list(self.trainable_models.values())[0],
-                                                             self.trainable_models[head_type.name])
+            unmatched_modules = self._partially_match_models(list(self.trainable_models.values())[0], new_head)
             # this can contain a deep stack of layers, hence in general, it can not be checked automatically
             logger.warning("These layers of the loaded %s were not merged: %s" % (head_type.name, unmatched_modules))
         self.trainable_models[objective_id] = new_head
