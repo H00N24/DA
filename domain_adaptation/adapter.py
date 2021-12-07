@@ -94,7 +94,8 @@ class Adapter(Trainer):
 
         objectives_counter = {type(obj): 0 for obj in self.schedule.objectives["train"].values()}
 
-        for objective_id, module in self.model.trainable_models.items():
+        for objective_id in self.schedule.objectives["train"].keys():
+            module = self.model.trainable_models[str(objective_id)]
             objective = self.schedule.objectives["train"][int(objective_id)]
             output_module_path = os.path.join(output_dir, str(objective))
 
