@@ -37,8 +37,8 @@ training_arguments = AdaptationArguments(output_dir=output_model_dir,
                                          do_eval=True,
                                          warmup_steps=10000,
                                          gradient_accumulation_steps=20,
-                                         logging_steps=2,
-                                         eval_steps=2,
+                                         logging_steps=50,
+                                         eval_steps=250,
                                          save_steps=1000,
                                          num_train_epochs=30,
                                          evaluation_strategy="steps")
@@ -51,6 +51,7 @@ train_metrics = [BLEU(**metrics_args), ROUGE(**metrics_args), BERTScore(**metric
 val_metrics = [BLEU(**metrics_args), ROUGE(**metrics_args), BERTScore(**metrics_args, decides_convergence=True)]
 
 flow_objective = MinimumFlow(lang_module=lang_module,
+                             objective_id="Wiki",
                              texts_or_path=train_source.source,
                              labels_or_path=train_source.target,
                              val_texts_or_path=train_val_source.source,
@@ -62,6 +63,7 @@ flow_objective = MinimumFlow(lang_module=lang_module,
                              val_evaluators=val_metrics)
 
 clm_training = DecoderSequence2Sequence(lang_module,
+                                        objective_id="Wiki",
                                         texts_or_path=train_source.source,
                                         labels_or_path=train_source.target,
                                         val_texts_or_path=train_val_source.source,
@@ -74,6 +76,7 @@ clm_training = DecoderSequence2Sequence(lang_module,
                                         share_other_objective_head=flow_objective)
 
 clm_eval_bible = DecoderSequence2Sequence(lang_module,
+                                          objective_id="Blbie",
                                           texts_or_path=[],
                                           labels_or_path=[],
                                           val_texts_or_path=adapt_val_source1.source,
@@ -86,6 +89,7 @@ clm_eval_bible = DecoderSequence2Sequence(lang_module,
                                           share_other_objective_head=flow_objective)
 
 clm_eval_opensub = DecoderSequence2Sequence(lang_module,
+                                            objective_id="Opensub",
                                             texts_or_path=[],
                                             labels_or_path=[],
                                             val_texts_or_path=adapt_val_source2.source,
@@ -99,7 +103,7 @@ clm_eval_opensub = DecoderSequence2Sequence(lang_module,
 
 
 schedule = StridedSchedule(objectives=[flow_objective, clm_training],
-                           eval_objectives=[clm_eval_bible, clm_eval_opensub],
+                           extra_eval_objectives=[clm_eval_bible, clm_eval_opensub],
                            args=training_arguments)
 
 adapter = Adapter(lang_module, schedule, args=training_arguments)

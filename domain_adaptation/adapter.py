@@ -90,19 +90,19 @@ class Adapter(Trainer):
         # HF native reload compatibility
         # TODO: low priority - we should persist some meta info with the objectives' modules,
         #  so if the same objective is used multiply, we can distinguish their persistence directories
-        # for now we just increment suffix over the same objective types
+        # for now we just increment suffix over the same objective ids
 
-        objectives_counter = {type(obj): 0 for obj in self.schedule.objectives["train"].values()}
+        objectives_counter = {str(obj): 0 for obj in self.schedule.objectives["train"].values()}
 
         for objective_id in self.schedule.objectives["train"].keys():
             module = self.model.trainable_models[str(objective_id)]
             objective = self.schedule.objectives["train"][int(objective_id)]
             output_module_path = os.path.join(output_dir, str(objective))
 
-            # if the objective of this type was already persisted, we'll index the configs of the next ones
-            if objectives_counter[type(objective)] != 0:
-                output_module_path += ("_" + objectives_counter[type(objective)])
-                objectives_counter[type(objective)] += 1
+            # if the objective of this id was already persisted, we'll index the configs of the next ones
+            if objectives_counter[str(objective)] != 0:
+                output_module_path += ("_" + objectives_counter[str(objective)])
+                objectives_counter[str(objective)] += 1
 
             # we persist a shared tokenizer and training args either way
             self.model.tokenizer.save_pretrained(output_module_path)
