@@ -95,7 +95,7 @@ class MinimumFlow(DecoderSequence2Sequence):
         self.sample_trials = kwargs["sample_trials"] if "sample_trials" in kwargs else 16
 
     def _lowest_pairwise_dists(self, ref_tokens: torch.LongTensor, hyp_tokens: torch.LongTensor,
-                               loss_fn: torch.nn.Module = torch.nn.MSELoss()) -> torch.Tensor:
+                               loss_fn: torch.nn.Module = torch.nn.MSELoss()) -> torch.FloatTensor:
         with torch.no_grad():
             ref_tokens_padded = torch.clone(ref_tokens)
             ref_tokens_padded[ref_tokens_padded < 0] = self.tokenizer.pad_token_id
@@ -131,9 +131,11 @@ class MinimumFlow(DecoderSequence2Sequence):
         # proportionally to its aggregated score
         per_rank_output_sequences = top_k_output_ids.transpose(-1, -2)
 
-        top_k_output_dists = self._lowest_pairwise_dists(labels, per_rank_output_sequences)
+        # top_k_output_dists = self._lowest_pairwise_dists(labels, per_rank_output_sequences)
+        # # transpose distances back and weight them by a token-level confidence of the model
+        # log_loss = top_k_output_log_probs + top_k_output_dists.log().transpose(-1, -2)
+        # return log_loss.exp().mean()
 
-        # transpose distances back and weight them by a token-level confidence of the model
-        log_loss = top_k_output_log_probs + top_k_output_dists.log().transpose(-1, -2)
+        loss_agg = self._lowest_pairwise_dists(labels, per_rank_output_sequences)
 
-        return log_loss.exp().mean()
+        return loss_agg
