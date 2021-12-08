@@ -94,24 +94,32 @@ class MinimumFlow(DecoderSequence2Sequence):
         # TODO: impact of the sample size?
         self.sample_trials = kwargs["sample_trials"] if "sample_trials" in kwargs else 16
 
-    def _lowest_pairwise_dists(self, ref_tokens: torch.LongTensor, hyp_tokens: torch.LongTensor) -> torch.Tensor:
-        ref_tokens_padded = torch.clone(ref_tokens)
-        ref_tokens_padded[ref_tokens_padded < 0] = self.tokenizer.pad_token_id
-        ref_embeddings = self.lang_model(input_ids=ref_tokens_padded).last_hidden_state
+    def _lowest_pairwise_dists(self, ref_tokens: torch.LongTensor, hyp_tokens: torch.LongTensor,
+                               loss_fn: torch.nn.Module = torch.nn.MSELoss()) -> torch.Tensor:
+        with torch.no_grad():
+            ref_tokens_padded = torch.clone(ref_tokens)
+            ref_tokens_padded[ref_tokens_padded < 0] = self.tokenizer.pad_token_id
+            ref_embeddings = self.lang_model(input_ids=ref_tokens_padded).last_hidden_state
+            # model omits one dimension for batch_size=1
 
-        per_samples_embeddings = []
-        # re-batch, in order to be able to sample more
-        for batch_hyp in hyp_tokens:
-            per_samples_embeddings.append(self.lang_model(input_ids=batch_hyp).last_hidden_state)
+            per_samples_embeddings = []
+            # re-batch, in order to be able to sample more
+            for batch_hyp in hyp_tokens:
+                per_samples_embeddings.append(self.lang_model(input_ids=batch_hyp).last_hidden_state)
 
-        per_samples_dists = []
-        for ref_embeddings, hyps_embeddings in zip(ref_embeddings, per_samples_embeddings):
-            dists = torch.cdist(ref_embeddings.unsqueeze(0), hyps_embeddings)
-            pairwise_euclid_dists, idx = dists.min(-2)
+            per_samples_min_idxs = []
+            for ref_embeddings_one, hyps_embeddings in zip(ref_embeddings, per_samples_embeddings):
+                dists = torch.cdist(ref_embeddings_one, hyps_embeddings, p=1)
+                pairwise_euclid_dists, idx = dists.min(-2)
+                per_samples_min_idxs.append(idx)
 
-            per_samples_dists.append(pairwise_euclid_dists)
+        loss_agg = torch.tensor(0, dtype=torch.float, requires_grad=True)
+        for batch_i, batch_min_idx in enumerate(per_samples_min_idxs):
+            min_dist_ref_embeddings = ref_embeddings[batch_i, batch_min_idx]
+            hyp_embeddings = per_samples_embeddings[batch_i]
+            loss_agg = loss_agg + loss_fn(hyp_embeddings, min_dist_ref_embeddings)
 
-        return torch.stack(per_samples_dists)
+        return loss_agg
 
     def _compute_loss(self, lm_logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
 
