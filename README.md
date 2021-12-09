@@ -71,19 +71,17 @@ it will not lose much accuracy on other domains. Or you can concurrently train o
 
 ```python
 # 1. pick the models - randomly pre-initialize the appropriate heads
-lang_module = LangModule(test_base_models["token_classification"],
-                         head_types=[Head.LANGUAGE_MODEL, Head.TOKEN_CLASSIFICATION],
-                         head_kwargs=[{}, {"num_labels": 3}])
+lang_module = LangModule(test_base_models["token_classification"])
 
 # 2. pick objectives
 # Objectives take either List[str] for in-memory iteration, or a source file path for streamed iteration
 objectives = [MaskedLanguageModeling(lang_module,
-                                     batch_size=16,
-                                     texts_or_path="mock_data/domain_unsup.txt"),
+                                     batch_size=1,
+                                     texts_or_path="tests/mock_data/domain_unsup.txt"),
               TokenClassification(lang_module,
-                                  batch_size=16,
+                                  batch_size=1,
                                   texts_or_path="tests/mock_data/ner_texts_sup.txt",
-                                  labels_or_path="mock_data/ner_texts_sup_labels.txt")]
+                                  labels_or_path="tests/mock_data/ner_texts_sup_labels.txt")]
 # 3. pick a schedule of the selected objectives
 # This one will initially fit the first objective to the convergence on its eval set, fit the second 
 schedule = SequentialSchedule(objectives, training_arguments)

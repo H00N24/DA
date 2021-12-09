@@ -18,11 +18,9 @@ setup(
     zip_safe=True,
     install_requires=[
         "torch>=1.7",
-        "transformers[sentencepiece]==4.10.2",
-        "torch",
+        "transformers==4.10.2",
+        "sentencepiece",
         "pytest",
-        "sacrebleu",
-        "rouge-score"
     ],
     extras_require={
         "generative": [
