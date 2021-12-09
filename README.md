@@ -195,4 +195,4 @@ See other examples in `examples` folder.
 5. **Share!** Create a PR or issue here in GitHub with a link to your fork, and we'll happily take a look!
 
 -------
-If you have any other question(s), feel free to ping a message to stefanik@gaussalgo.com
+If you have any other question(s), feel free to ping a message to xxx@xxx.xx
