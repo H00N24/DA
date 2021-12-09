@@ -1,3 +1,5 @@
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+
 from domain_adaptation.adapter import Adapter
 from domain_adaptation.evaluators.generative import BLEU
 from domain_adaptation.lang_module import LangModule
@@ -67,7 +69,15 @@ def test_adaptation_translation():
     adapter.save_model("translator_model")
 
     # 6. reload and use it like any other Hugging Face model
-    # TODO: some reloads need persisted config
-    # translator_model = AutoModelForSeq2SeqLM.from_pretrained("translator_model")
+    translator_model = AutoModelForSeq2SeqLM.from_pretrained("translator_model/DecoderSequence2Sequence")
+    tokenizer = AutoTokenizer.from_pretrained("translator_model/DecoderSequence2Sequence")
+
+    # 7. use the model anyhow you like, e.g. as a translator with iterative generation
+    tokenizer.src_lang, tokenizer.tgt_lang = "en", "cs"
+
+    inputs = tokenizer("A piece of text to translate.", return_tensors="pt")
+    output_ids = translator_model.generate(**inputs)
+    output_text = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
+    print(output_text)
 
 # test_adaptation_translation()
