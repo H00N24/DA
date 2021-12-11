@@ -137,7 +137,8 @@ class DenoisingObjective(DecoderSequence2SequenceMixin, UnsupervisedObjective):
                  objective_module: Optional[torch.nn.Module] = None,
                  noising_strategies: Optional[List[NoisingStrategy]] = None,
                  noising_prob: float = 0.6,
-                 noising_per_sentence: bool = True):
+                 noising_per_sentence: bool = True,
+                 objective_id: Optional[str] = ""):
         super().__init__(lang_module=lang_module,
                          batch_size=batch_size,
                          texts_or_path=texts_or_path,
@@ -145,7 +146,8 @@ class DenoisingObjective(DecoderSequence2SequenceMixin, UnsupervisedObjective):
                          train_evaluators=train_evaluators,
                          val_evaluators=val_evaluators,
                          share_other_objective_head=share_other_objective_head,
-                         objective_module=objective_module)
+                         objective_module=objective_module,
+                         objective_id=objective_id)
 
         if noising_strategies is None:
             self.noising_strategies = [Shuffle(application_ratio=noising_prob)]
@@ -154,7 +156,7 @@ class DenoisingObjective(DecoderSequence2SequenceMixin, UnsupervisedObjective):
 
         self.noising_per_sentence = noising_per_sentence
 
-        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer)
+        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer, self.compatible_head_model)
 
     def _apply_noise(self, text: str) -> str:
         out_text = text

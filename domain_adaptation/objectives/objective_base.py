@@ -17,6 +17,7 @@ logger = logging.getLogger()
 class Objective(abc.ABC):
 
     compatible_head: Head
+    given_id: str
     epoch: int
 
     texts: Optional[List[str]]
@@ -40,9 +41,12 @@ class Objective(abc.ABC):
                  train_evaluators: Sequence[EvaluatorBase] = (),
                  val_evaluators: Sequence[EvaluatorBase] = (),
                  share_other_objective_head: Optional["Objective"] = None,
-                 objective_module: Optional[torch.nn.Module] = None):
+                 objective_module: Optional[torch.nn.Module] = None,
+                 objective_id: Optional[str] = ""):
         self.batch_size = batch_size
         self.tokenizer = lang_module.tokenizer
+        self.given_id = objective_id
+
         self.compatible_head_model = self.register_compatible_head_model(lang_module,
                                                                          share_other_objective_head,
                                                                          {},
@@ -210,7 +214,10 @@ class Objective(abc.ABC):
         return lang_module.load_training_head(self.compatible_head, str(id(self)), head_config, preloaded_module)
 
     def __str__(self) -> str:
-        return str(self.__class__.__name__)
+        if self.given_id:
+            return str("%s-%s" % (self.given_id, self.__class__.__name__))
+        else:
+            return self.__class__.__name__
 
 
 class UnsupervisedObjective(Objective, abc.ABC):
@@ -259,7 +266,8 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
                  train_evaluators: Sequence[EvaluatorBase] = (),
                  val_evaluators: Sequence[EvaluatorBase] = (),
                  share_other_objective_head: Optional["Objective"] = None,
-                 objective_module: Optional[torch.nn.Module] = None):
+                 objective_module: Optional[torch.nn.Module] = None,
+                 objective_id: Optional[str] = ""):
 
         if type(labels_or_path) == str:
             self.labels_path = labels_or_path
@@ -280,7 +288,8 @@ class SupervisedObjective(UnsupervisedObjective, abc.ABC):
                          train_evaluators=train_evaluators,
                          val_evaluators=val_evaluators,
                          share_other_objective_head=share_other_objective_head,
-                         objective_module=objective_module)
+                         objective_module=objective_module,
+                         objective_id=objective_id)
 
     def register_compatible_head_model(self, lang_module: LangModule,
                                        other_objective: Optional["Objective"],

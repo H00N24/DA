@@ -28,7 +28,8 @@ class MaskedLanguageModeling(UnsupervisedObjective):
                  share_other_objective_head: Optional["Objective"] = None,
                  objective_module: Optional[torch.nn.Module] = None,
                  masking_application_prob: float = 0.15,
-                 full_token_masking: bool = False):
+                 full_token_masking: bool = False,
+                 objective_id: Optional[str] = ""):
         super().__init__(lang_module=lang_module,
                          batch_size=batch_size,
                          texts_or_path=texts_or_path,
@@ -36,7 +37,8 @@ class MaskedLanguageModeling(UnsupervisedObjective):
                          train_evaluators=train_evaluators,
                          val_evaluators=val_evaluators,
                          share_other_objective_head=share_other_objective_head,
-                         objective_module=objective_module)
+                         objective_module=objective_module,
+                         objective_id=objective_id)
         if full_token_masking:
             self.collator = DataCollatorForWholeWordMask(lang_module.tokenizer,
                                                          mlm_probability=masking_application_prob)

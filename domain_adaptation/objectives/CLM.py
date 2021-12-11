@@ -34,7 +34,8 @@ class CausalLanguageModelingUnsup(UnsupervisedObjective, Sequence2SequenceMixin,
                  train_evaluators: Sequence[EvaluatorBase] = (),
                  val_evaluators: Sequence[EvaluatorBase] = (),
                  share_other_objective_head: Optional["Objective"] = None,
-                 objective_module: Optional[torch.nn.Module] = None):
+                 objective_module: Optional[torch.nn.Module] = None,
+                 objective_id: Optional[str] = ""):
         super().__init__(lang_module=lang_module,
                          batch_size=batch_size,
                          texts_or_path=texts_or_path,
@@ -42,10 +43,11 @@ class CausalLanguageModelingUnsup(UnsupervisedObjective, Sequence2SequenceMixin,
                          train_evaluators=train_evaluators,
                          val_evaluators=val_evaluators,
                          share_other_objective_head=share_other_objective_head,
-                         objective_module=objective_module)
+                         objective_module=objective_module,
+                         objective_id=objective_id)
 
         # TODO: check that CLM with seq2seq collator does not see forward
-        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer)
+        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer, self.compatible_head_model)
 
 
 class CausalLanguageModelingSup(SupervisedObjective, Sequence2SequenceMixin, CLMMixin):
@@ -62,15 +64,16 @@ class CausalLanguageModelingSup(SupervisedObjective, Sequence2SequenceMixin, CLM
                  train_evaluators: Sequence[EvaluatorBase] = (),
                  val_evaluators: Sequence[EvaluatorBase] = (),
                  share_other_objective_head: Optional["Objective"] = None,
-                 objective_module: Optional[torch.nn.Module] = None):
+                 objective_module: Optional[torch.nn.Module] = None,
+                 objective_id: Optional[str] = ""):
         super().__init__(lang_module=lang_module, batch_size=batch_size, texts_or_path=texts_or_path,
                          labels_or_path=labels_or_path, val_texts_or_path=val_texts_or_path,
                          val_labels_or_path=val_labels_or_path, train_evaluators=train_evaluators,
                          val_evaluators=val_evaluators, share_other_objective_head=share_other_objective_head,
-                         objective_module=objective_module)
+                         objective_module=objective_module, objective_id=objective_id)
 
         self.tokenizer.src_lang = source_lang_id
         self.tokenizer.tgt_lang = target_lang_id
 
-        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer)
+        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer, self.compatible_head_model)
 

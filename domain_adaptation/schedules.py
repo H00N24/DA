@@ -23,11 +23,11 @@ class TrainingSchedule(abc.ABC):
     def __init__(self,
                  objectives: List[Objective],
                  args: AdaptationArguments,
-                 eval_objectives: Optional[List[Objective]] = ()):
+                 extra_eval_objectives: Optional[List[Objective]] = ()):
 
         # eval objectives = train + eval => train objectives are evaluated implicitly
         self.objectives = {"train": {id(o): o for o in objectives},
-                           "eval": {id(o): o for o in objectives + list(eval_objectives)}}
+                           "eval": {id(o): o for o in objectives + list(extra_eval_objectives)}}
 
         self.objectives_loss_queue = []
         self.converged_objectives = []
