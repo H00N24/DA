@@ -70,7 +70,7 @@ class Adapter(Trainer):
         mock_outputs = torch.tensor([-1, -1])
         return (loss, mock_outputs) if return_outputs else loss
 
-    def log(self, logs: [Dict[str, float]]) -> None:
+    def log(self, logs: List[Dict[str, float]]) -> None:
         is_eval_log = any(self.eval_metrics_prefix in log_key for log_key in logs)
         extended_logs = self.schedule.objectives_log(split="eval" if is_eval_log else "train")
         return super().log({**logs, **extended_logs})
@@ -90,7 +90,7 @@ class Adapter(Trainer):
         # HF native reload compatibility
         # TODO: low priority - we should persist some meta info with the objectives' modules,
         #  so if the same objective is used multiply, we can distinguish their persistence directories
-        # for now we just increment suffix over the same objective ids
+        # for now we just increment suffix over the same objective types
 
         objectives_counter = {str(obj): 0 for obj in self.schedule.objectives["train"].values()}
 

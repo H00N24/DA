@@ -95,7 +95,7 @@ class MinimumFlow(DecoderSequence2Sequence):
         self.sample_trials = kwargs["sample_trials"] if "sample_trials" in kwargs else 16
 
     def _lowest_pairwise_dists(self, ref_tokens: torch.LongTensor, hyp_tokens: torch.LongTensor,
-                               loss_fn: torch.nn.Module = torch.nn.MSELoss()) -> torch.FloatTensor:
+                               loss_fn: torch.nn.Module = torch.nn.CosineEmbeddingLoss()) -> torch.FloatTensor:
         with torch.no_grad():
             ref_tokens_padded = torch.clone(ref_tokens)
             ref_tokens_padded[ref_tokens_padded < 0] = self.tokenizer.pad_token_id
@@ -113,7 +113,7 @@ class MinimumFlow(DecoderSequence2Sequence):
                 pairwise_euclid_dists, idx = dists.min(-2)
                 per_samples_min_idxs.append(idx)
 
-        loss_agg = torch.tensor(0, dtype=torch.float, requires_grad=True)
+        loss_agg = torch.tensor(0., requires_grad=True)
         for batch_i, batch_min_idx in enumerate(per_samples_min_idxs):
             min_dist_ref_embeddings = ref_embeddings[batch_i, batch_min_idx]
             hyp_embeddings = per_samples_embeddings[batch_i]
@@ -122,15 +122,25 @@ class MinimumFlow(DecoderSequence2Sequence):
         return loss_agg
 
     def _compute_loss(self, lm_logit_outputs: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
-
+        """This loss does the following sequence of steps:
+        1. infer contextualized embeddings (e) for each token of translation hypothesis (e_hyp) and reference (e_ref)
+        2. for each hypothesis token, find the best-matching token from reference, based on their embedding distance.
+           as t_i_ref = argmin(cos(e_hyp, e_t_ref) for t in ref_tokens)
+        2. computes a loss as a sum of these minimal distances:
+           L = sum(cos(e_j_hyp, e_i_ref) for e_j_hyp in e_hyp)
+        """
+        # hypothesis generation
         output_log_probs = F.log_softmax(lm_logit_outputs, dim=-1)
         top_k_output_ids = output_log_probs.argsort(descending=True)[..., :self.sample_trials]
-        top_k_output_log_probs = output_log_probs.gather(-1, top_k_output_ids)
+
+        # we do not care about the actual tokens log-probs now
+        # top_k_output_log_probs = output_log_probs.gather(-1, top_k_output_ids)
 
         # per-score-rank-sequences are passed for embeddings inference - a corruption on lower ranks affects rank
         # proportionally to its aggregated score
         per_rank_output_sequences = top_k_output_ids.transpose(-1, -2)
 
+        # # weighting by token probs - we do not do that for now
         # top_k_output_dists = self._lowest_pairwise_dists(labels, per_rank_output_sequences)
         # # transpose distances back and weight them by a token-level confidence of the model
         # log_loss = top_k_output_log_probs + top_k_output_dists.log().transpose(-1, -2)

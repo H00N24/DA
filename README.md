@@ -71,19 +71,17 @@ it will not lose much accuracy on other domains. Or you can concurrently train o
 
 ```python
 # 1. pick the models - randomly pre-initialize the appropriate heads
-lang_module = LangModule(test_base_models["token_classification"],
-                         head_types=[Head.LANGUAGE_MODEL, Head.TOKEN_CLASSIFICATION],
-                         head_kwargs=[{}, {"num_labels": 3}])
+lang_module = LangModule(test_base_models["token_classification"])
 
 # 2. pick objectives
 # Objectives take either List[str] for in-memory iteration, or a source file path for streamed iteration
 objectives = [MaskedLanguageModeling(lang_module,
-                                     batch_size=16,
-                                     texts_or_path="mock_data/domain_unsup.txt"),
+                                     batch_size=1,
+                                     texts_or_path="tests/mock_data/domain_unsup.txt"),
               TokenClassification(lang_module,
-                                  batch_size=16,
+                                  batch_size=1,
                                   texts_or_path="tests/mock_data/ner_texts_sup.txt",
-                                  labels_or_path="mock_data/ner_texts_sup_labels.txt")]
+                                  labels_or_path="tests/mock_data/ner_texts_sup_labels.txt")]
 # 3. pick a schedule of the selected objectives
 # This one will initially fit the first objective to the convergence on its eval set, fit the second 
 schedule = SequentialSchedule(objectives, training_arguments)
@@ -112,7 +110,7 @@ or medicine texts with a lot of latin expressions.
 
 ```python
 # 1. pick the models - randomly pre-initialize the appropriate heads
-lang_module = LangModule(test_base_models["translation"], head_types=[Head.LANGUAGE_MODEL])
+lang_module = LangModule(test_base_models["translation"])
 
 # (optional) pick train and validation evaluators for the objectives
 seq2seq_evaluators = [BLEU(decides_convergence=True)]
@@ -120,7 +118,7 @@ seq2seq_evaluators = [BLEU(decides_convergence=True)]
 # 2. pick objectives - we use BART's objective for adaptation and mBART's seq2seq objective for fine-tuning
 objectives = [DenoisingObjective(lang_module,
                                  batch_size=1,
-                                 texts_or_path=paths["texts"]["target_domain"]["unsup"],
+                                 texts_or_path="tests/mock_data/domain_unsup.txt",
                                  val_evaluators=seq2seq_evaluators),
               DecoderSequence2Sequence(lang_module, batch_size=1,
                                        texts_or_path=paths["texts"]["target_domain"]["translation"],
@@ -136,6 +134,7 @@ objectives = [DenoisingObjective(lang_module,
                                        batch_size=1,
                                        texts_or_path="tests/mock_data/seq2seq_sources.txt",
                                        labels_or_path="tests/mock_data/seq2seq_targets.txt",
+                                       val_evaluators=seq2seq_evaluators,
                                        source_lang_id="en", target_lang_id="cs")]
 # 3. pick a schedule of the selected objectives
 # this one will shuffle the batches of both objectives
@@ -149,7 +148,15 @@ adapter.train()
 adapter.save_model("translator_model")
 
 # 6. reload and use it like any other Hugging Face model
-translator_model = AutoModelForSeq2SeqLM.from_pretrained("translator_model")
+translator_model = AutoModelForSeq2SeqLM.from_pretrained("translator_model/DecoderSequence2Sequence")
+tokenizer = AutoTokenizer.from_pretrained("translator_model/DecoderSequence2Sequence")
+tokenizer.src_lang, tokenizer.tgt_lang = "en", "cs"
+
+# 7. use the model anyhow you like, e.g. as a translator with iterative generation
+inputs = tokenizer("A piece of text to translate.", return_tensors="pt")
+output_ids = translator_model.generate(**inputs)
+output_text = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
+print(output_text)
 ```
 **Try this example** with training resources resolution from OPUS in `examples/machine_translation/train_wiki_adapt_bible.py`
 
@@ -186,4 +193,4 @@ See other examples in `examples` folder.
 5. **Share!** Create a PR or issue here in GitHub with a link to your fork, and we'll happily take a look!
 
 -------
-If you have any other question(s), feel free to ping a message to xxx@xxx.com
+If you have any other question(s), feel free to ping a message to xxx@xxx.xx

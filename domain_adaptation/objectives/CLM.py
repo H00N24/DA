@@ -47,7 +47,7 @@ class CausalLanguageModelingUnsup(UnsupervisedObjective, Sequence2SequenceMixin,
                          objective_id=objective_id)
 
         # TODO: check that CLM with seq2seq collator does not see forward
-        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer)
+        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer, self.compatible_head_model)
 
 
 class CausalLanguageModelingSup(SupervisedObjective, Sequence2SequenceMixin, CLMMixin):
@@ -75,5 +75,5 @@ class CausalLanguageModelingSup(SupervisedObjective, Sequence2SequenceMixin, CLM
         self.tokenizer.src_lang = source_lang_id
         self.tokenizer.tgt_lang = target_lang_id
 
-        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer)
+        self.collator = DataCollatorForSeq2Seq(lang_module.tokenizer, self.compatible_head_model)
 
