@@ -13,7 +13,7 @@ setup(
     author_email="tobeadded@tobeadded.com",
     url="gitlab.com",
     license="MIT",
-    packages=find_packages(include=["domain_adaptation"]),
+    packages=find_packages(include=["domain_adaptation", "domain_adaptation.*"]),
     include_package_data=True,
     zip_safe=True,
     install_requires=[
